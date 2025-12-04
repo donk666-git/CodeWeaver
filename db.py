@@ -1,55 +1,118 @@
 # db.py
 import sqlite3
 import os
+import json
 
-# 【核心修复】获取当前 db.py 文件所在的绝对文件夹路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 拼接出数据库的绝对路径，确保不管你在哪里运行 python，都读写同一个文件
 DB_FILE = os.path.join(BASE_DIR, 'code_weaver.db')
 
 def get_connection():
-    # check_same_thread=False 允许 Flask 多线程访问
     return sqlite3.connect(DB_FILE, check_same_thread=False)
 
 def init_db():
     conn = get_connection()
     c = conn.cursor()
     c.execute('''
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    c.execute('''
         CREATE TABLE IF NOT EXISTS snippets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
             title TEXT,
             code TEXT,
             language TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            style_config TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(project_id) REFERENCES projects(id)
         )
     ''')
     conn.commit()
     conn.close()
-    print(f"✅ 数据库已连接: {DB_FILE}") # 打印路径方便你检查
 
-def add_snippet(title, code, language):
+def save_snippet_v2(project_name, title, code, language, style_config=None):
+    conn = get_connection()
+    c = conn.cursor()
     try:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute('INSERT INTO snippets (title, code, language) VALUES (?, ?, ?)', 
-                  (title, code, language))
+        # 1. 查找或创建项目
+        c.execute('SELECT id FROM projects WHERE name = ?', (project_name,))
+        row = c.fetchone()
+        if row:
+            project_id = row[0]
+        else:
+            c.execute('INSERT INTO projects (name) VALUES (?)', (project_name,))
+            project_id = c.lastrowid
+            
+        # 2. 插入代码
+        config_str = json.dumps(style_config) if style_config else "{}"
+        c.execute('''
+            INSERT INTO snippets (project_id, title, code, language, style_config) 
+            VALUES (?, ?, ?, ?, ?)
+        ''', (project_id, title, code, language, config_str))
         conn.commit()
-        conn.close()
-        print(f"💾 成功写入数据库: {title}") # 后台打印日志
         return True
     except Exception as e:
-        print(f"❌ 写入失败: {e}")
+        print(f"❌ DB Error: {e}")
         return False
+    finally:
+        conn.close()
 
-def get_all_snippets():
+def delete_snippet(snippet_id):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('DELETE FROM snippets WHERE id = ?', (snippet_id,))
+    conn.commit()
+    conn.close()
+
+# 【新增】删除项目 (连带删除下面的代码)
+def delete_project(project_name):
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        # 1. 先找 ID
+        c.execute('SELECT id FROM projects WHERE name = ?', (project_name,))
+        row = c.fetchone()
+        if not row: return False
+        pid = row[0]
+        
+        # 2. 删除该项目下的所有 snippet
+        c.execute('DELETE FROM snippets WHERE project_id = ?', (pid,))
+        
+        # 3. 删除项目本身
+        c.execute('DELETE FROM projects WHERE id = ?', (pid,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(e)
+        return False
+    finally:
+        conn.close()
+
+def get_all_grouped():
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute('SELECT * FROM snippets ORDER BY id DESC')
+    # 联表查询
+    c.execute('''
+        SELECT s.id, s.title, s.code, s.language, s.created_at, p.name as project_name
+        FROM snippets s
+        JOIN projects p ON s.project_id = p.id
+        ORDER BY p.created_at DESC, s.created_at DESC
+    ''')
     rows = c.fetchall()
     conn.close()
-    # 将 row 对象转为字典，方便 Flask 序列化
-    return [dict(row) for row in rows]
+    
+    result = {}
+    for row in rows:
+        item = dict(row)
+        p_name = item['project_name']
+        if p_name not in result:
+            result[p_name] = []
+        result[p_name].append(item)
+    return result
 
-# 初始化
 init_db()

@@ -3,79 +3,296 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CodeWeaver</title>
+    <title>CodeWeaver Pro</title>
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
-    <link href="/static/css/style.css" rel="stylesheet">
-    
+
     <style>
-        /* 简单的 Tab 样式优化 */
-        .nav-tabs .nav-link { font-size: 13px; color: #666; }
-        .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
-        .tab-content { padding-top: 15px; }
+        body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size: 13px; }
+        .project-card { border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 12px; background: #fff; overflow:hidden; }
+        .project-header { background: #f6f8fa; border-bottom: 1px solid #e1e4e8; padding: 8px 12px; font-weight: 600; color: #24292f; display: flex; justify-content: space-between; align-items: center; }
+        .snippet-item { padding: 8px 12px; border-bottom: 1px solid #eaecef; display: flex; justify-content: space-between; align-items: center; }
+        .snippet-item:hover { background: #f1f8ff; }
+        .snippet-title { font-weight: 500; cursor: pointer; color: #0366d6; max-width: 130px; }
+        .snippet-title:hover { text-decoration: underline; }
+        .btn-action { border: none; background: none; font-size: 14px; padding: 2px 6px; opacity: 0.6; }
+        .btn-action:hover { opacity: 1; transform: scale(1.1); }
+        .btn-del-proj { color: #cf222e; font-size: 12px; border: 1px solid transparent; padding: 2px 6px; border-radius: 4px; }
+        .btn-del-proj:hover { border-color: #cf222e; background: #fff; }
+        textarea { font-family: Consolas, monospace; font-size: 11px; }
     </style>
 </head>
 <body class="p-3">
 
-    <ul class="nav nav-tabs" id="myTab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor" type="button">🖊️ 编辑器</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" type="button" onclick="loadSnippets()">📦 代码库</button>
-        </li>
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><button class="nav-link active" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor">🖊️ 编辑器</button></li>
+        <li class="nav-item"><button class="nav-link" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" onclick="loadSnippets()">📚 项目库</button></li>
     </ul>
 
-    <div class="tab-content" id="myTabContent">
-        
-        <div class="tab-pane fade show active" id="editor" role="tabpanel">
-            
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="editor">
+            <div class="row g-2 mb-2">
+                <div class="col-6"><input type="text" id="inputProject" class="form-control form-control-sm" placeholder="📂 项目名"></div>
+                <div class="col-6"><input type="text" id="inputTitle" class="form-control form-control-sm" placeholder="📝 标题"></div>
+            </div>
             <div class="mb-2">
                 <select id="langSelect" class="form-select form-select-sm">
-                    <option value="auto">✨ 自动检测 (Auto)</option>
-                    <option disabled>--- 常用 ---</option>
+                    <option value="auto">✨ 自动检测</option>
                     <option value="python">Python</option>
                     <option value="matlab">MATLAB</option>
                     <option value="c">C / C++</option>
-                    <option value="java">Java</option>
-                    <option value="html">HTML / XML</option>
-                    <option disabled>--- 其他 ---</option>
-                    <option value="javascript">JavaScript / TS</option>
-                    <option value="sql">SQL</option>
-                    <option value="go">Go</option>
-                    <option value="csharp">C#</option>
-                    <option value="r">R</option>
-                    <option value="bash">Bash / Shell</option>
                 </select>
             </div>
-            
-            <div class="mb-2 position-relative">
-                <textarea id="codeSource" class="form-control" rows="12" placeholder="// 粘贴代码到这里..."></textarea>
-                <button id="btnGetSelection" class="btn btn-sm btn-light border position-absolute bottom-0 end-0 m-2 shadow-sm" style="z-index: 10;">
-                    📥 获取选中
-                </button>
+            <div class="mb-3 position-relative">
+                <textarea id="codeSource" class="form-control" rows="12" placeholder="// 代码..."></textarea>
+                <button type="button" class="btn btn-sm btn-light border position-absolute bottom-0 end-0 m-2" onclick="getFromSelection()">📥 吸取</button>
             </div>
-
             <div class="d-grid gap-2">
-                <button id="btnInsert" class="btn btn-primary shadow-sm" >⚡ 插入高亮代码</button>
-                <button id="btnSave" class="btn btn-outline-secondary" >💾 保存到云端</button>
+                <button type="button" class="btn btn-primary" onclick="insertHighlight()">⚡ 插入高亮</button>
+                <button type="button" class="btn btn-success" onclick="saveSnippet()">💾 保存</button>
             </div>
+            <div id="statusMsg" class="mt-2 text-center small text-muted"></div>
         </div>
 
-        <div class="tab-pane fade" id="library" role="tabpanel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <input type="text" id="searchBox" class="form-control form-control-sm me-2" placeholder="搜索代码...">
-                <button onclick="loadSnippets()" class="btn btn-sm btn-outline-primary">🔄</button>
+        <div class="tab-pane fade" id="library">
+            <div class="d-flex justify-content-between mb-2">
+                <input type="text" id="searchBox" class="form-control form-control-sm me-2" placeholder="搜索...">
+                <button class="btn btn-sm btn-outline-primary" onclick="loadSnippets()">🔄</button>
             </div>
-            
-            <div id="snippetList" class="list-group list-group-flush">
-                <div class="text-center text-muted mt-5">点击刷新加载...</div>
+            <div id="gistContainer"></div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold">⚠️ 确认删除</h6>
+                </div>
+                <div class="modal-body py-3" id="confirmMsg">...</div>
+                <div class="modal-footer py-1">
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-sm btn-danger" id="btnConfirmDelete">删除</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="/static/js/taskpane.js?v=9999"></script>
+    <script>
+        // 全局变量存储当前要删除的对象
+        let deleteTarget = null; // { type: 'snippet'|'project', id: ..., name: ... }
+        let confirmModal = null;
+
+        Office.onReady((info) => {
+            if (info.host === Office.HostType.Word) {
+                $(document).ready(function () {
+                    syncProjectName();
+                    loadSnippets();
+                    
+                    // 初始化 Modal
+                    confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+                    
+                    // 绑定 Modal 的确认按钮
+                    $('#btnConfirmDelete').click(performDelete);
+
+                    // 搜索逻辑
+                    $('#searchBox').on('keyup', function() {
+                        var val = $(this).val().toLowerCase();
+                        $(".snippet-item").each(function() {
+                            $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
+                        });
+                    });
+                });
+            }
+        });
+
+        function showStatus(msg, type='info') {
+            const color = type === 'error' ? 'text-danger' : 'text-success';
+            $('#statusMsg').html(`<span class="${color}">${msg}</span>`);
+            setTimeout(() => $('#statusMsg').empty(), 3000);
+        }
+
+        function syncProjectName() {
+            try {
+                const url = Office.context.document.url;
+                if (url) {
+                    let filename = url.substring(url.lastIndexOf('/') + 1);
+                    if (filename.indexOf('.') > -1) filename = filename.substring(0, filename.lastIndexOf('.'));
+                    filename = decodeURIComponent(filename);
+                    if (filename) $('#inputProject').val(filename);
+                } else {
+                    const last = localStorage.getItem("last_project");
+                    if(last) $('#inputProject').val(last);
+                }
+            } catch (e) {}
+        }
+
+        // --- 保存 ---
+        window.saveSnippet = async function() {
+            const code = $('#codeSource').val();
+            const project = $('#inputProject').val() || "默认";
+            const title = $('#inputTitle').val();
+            if (!code || !title) return showStatus("❌ 请填写代码和标题", "error");
+            localStorage.setItem("last_project", project);
+
+            try {
+                showStatus("⏳ 保存中...");
+                const res = await fetch('/api/snippets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project, title, code, language: $('#langSelect').val() })
+                });
+                if ((await res.json()).status === 'success') {
+                    showStatus("✅ 成功", "success");
+                    $('#inputTitle').val('');
+                    loadSnippets();
+                } else showStatus("❌ 失败", "error");
+            } catch (e) { showStatus("❌ 错误", "error"); }
+        };
+
+        // --- 加载列表 ---
+        window.loadSnippets = async function() {
+            try {
+                const res = await fetch('/api/snippets?t=' + Date.now());
+                const grouped = await res.json();
+                const $cont = $('#gistContainer');
+                $cont.empty();
+
+                if (Object.keys(grouped).length === 0) {
+                    $cont.html('<div class="text-center text-muted mt-4">暂无代码</div>');
+                    return;
+                }
+
+                for (const [projName, items] of Object.entries(grouped)) {
+                    // 转义
+                    const safeProj = projName.replace(/"/g, '&quot;');
+                    
+                    let html = `
+                        <div class="project-card">
+                            <div class="project-header">
+                                <span>📂 ${projName}</span>
+                                <button class="btn-del-proj" onclick="askDeleteProject('${safeProj}')">删除文件夹</button>
+                            </div>
+                            <div>
+                    `;
+                    items.forEach(item => {
+                        const safeCode = encodeURIComponent(item.code);
+                        const safeTitle = item.title.replace(/"/g, '&quot;');
+                        html += `
+                            <div class="snippet-item">
+                                <span class="snippet-title text-truncate" onclick="loadToEditor('${safeCode}', '${item.language}')">${item.title}</span>
+                                <div>
+                                    <button class="btn-action btn-locate" onclick="locateInDoc('${safeCode}')">🔍</button>
+                                    <button class="btn-action btn-delete" style="color:#cf222e;" onclick="askDeleteSnippet(${item.id}, '${safeTitle}')">🗑️</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `</div></div>`;
+                    $cont.append(html);
+                }
+            } catch (e) {}
+        };
+
+        // --- 核心：代替 confirm 的模态框逻辑 ---
+        
+        // 1. 触发删除 Snippet
+        window.askDeleteSnippet = function(id, title) {
+            deleteTarget = { type: 'snippet', id: id };
+            $('#confirmMsg').text(`确认删除代码 "${title}" 吗？`);
+            confirmModal.show();
+        };
+
+        // 2. 触发删除 Project
+        window.askDeleteProject = function(name) {
+            deleteTarget = { type: 'project', name: name };
+            $('#confirmMsg').html(`确认删除文件夹 <b>"${name}"</b> 吗？<br><small class="text-danger">这将删除里面的所有代码！</small>`);
+            confirmModal.show();
+        };
+
+        // 3. 执行删除
+        async function performDelete() {
+            if (!deleteTarget) return;
+            confirmModal.hide(); // 关弹窗
+
+            let url = '', method = '';
+            let body = null;
+
+            if (deleteTarget.type === 'snippet') {
+                url = '/api/snippets/' + deleteTarget.id;
+                method = 'DELETE';
+            } else if (deleteTarget.type === 'project') {
+                url = '/api/projects/delete';
+                method = 'POST';
+                body = JSON.stringify({ name: deleteTarget.name });
+            }
+
+            try {
+                const opts = { method: method, headers: {'Content-Type': 'application/json'} };
+                if(body) opts.body = body;
+                
+                const res = await fetch(url, opts);
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    loadSnippets(); // 刷新
+                } else {
+                    alert("删除失败");
+                }
+            } catch (e) { alert("网络错误"); }
+        }
+
+        // --- 其他工具 ---
+        window.loadToEditor = function(enc, lang) {
+            $('#codeSource').val(decodeURIComponent(enc));
+            $('#langSelect').val(lang);
+            new bootstrap.Tab('#editor-tab').show();
+        };
+
+        window.locateInDoc = async function(enc) {
+            const code = decodeURIComponent(enc).substring(0, 50).trim();
+            try {
+                await Word.run(async (ctx) => {
+                    const r = ctx.document.body.search(code, { matchCase: true });
+                    ctx.load(r);
+                    await ctx.sync();
+                    if (r.items.length > 0) r.items[0].select();
+                });
+            } catch(e){}
+        };
+
+        window.insertHighlight = async function() {
+            const code = $('#codeSource').val();
+            const lang = $('#langSelect').val();
+            if (!code) return showStatus("❌ 代码为空", "error");
+            try {
+                const res = await fetch('/api/render', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({code, language: lang})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    await Word.run(async (ctx) => {
+                        ctx.document.getSelection().insertHtml(data.html, "Replace");
+                        await ctx.sync();
+                    });
+                } else showStatus("❌ 渲染失败", "error");
+            } catch(e) {}
+        };
+
+        window.getFromSelection = async function() {
+            try {
+                await Word.run(async (ctx) => {
+                    const r = ctx.document.getSelection();
+                    r.load("text");
+                    await ctx.sync();
+                    if(r.text) $('#codeSource').val(r.text);
+                });
+            } catch(e){}
+        };
+    </script>
 </body>
 </html>
