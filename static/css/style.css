@@ -1,80 +1,27 @@
 /* static/css/style.css */
 
-body {
-    font-family: "Segoe UI", "Roboto", sans-serif;
-    font-size: 14px;
-    background-color: #f8f9fa; /* 淡淡的灰背景，保护视力 */
-    color: #333;
-}
+body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size: 13px; }
 
-/* 标题区域 */
-h4 {
-    font-weight: 600;
-    color: #2c3e50;
-    margin-bottom: 15px;
-    border-bottom: 2px solid #0d6efd; /* 浙大蓝 */
-    padding-bottom: 8px;
-    display: inline-block;
-}
+/* 卡片样式优化 */
+.project-card { border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 12px; background: #fff; overflow: hidden;}
+.project-header { background: #f6f8fa; border-bottom: 1px solid #e1e4e8; padding: 8px 12px; font-weight: 600; color: #24292f; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
 
-/* 输入区域：伪装成 IDE */
-textarea#codeSource {
-    font-family: "Consolas", "Monaco", monospace; /* 代码字体 */
-    font-size: 12px;
-    background-color: #ffffff;
-    border: 1px solid #ced4da;
-    border-radius: 6px;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.075);
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
+.snippet-item { padding: 8px 12px; border-bottom: 1px solid #eaecef; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; }
+.snippet-item:last-child { border-bottom: none; }
+.snippet-item:hover { background: #f1f8ff; }
 
-textarea#codeSource:focus {
-    border-color: #86b7fe;
-    outline: 0;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
+/* 标题可点击 */
+.snippet-title { font-weight: 500; cursor: pointer; color: #0366d6; max-width: 130px; }
+.snippet-title:hover { text-decoration: underline; color: #0969da; }
 
+/* 操作按钮组 */
+.btn-action { border: none; background: none; font-size: 14px; padding: 2px 6px; opacity: 0.6; transition: opacity 0.2s; }
+.btn-action:hover { opacity: 1; transform: scale(1.1); }
+.btn-locate { color: #0969da; } /* 定位按钮蓝 */
+.btn-delete { color: #cf222e; } /* 删除按钮红 */
 
-/* 按钮组 */
-.btn-primary {
-    background-color: #0d6efd;
-    border: none;
-    font-weight: 500;
-}
+.btn-del-proj { color: #cf222e; font-size: 12px; border: 1px solid transparent; padding: 2px 6px; border-radius: 4px; background: none; }
+.btn-del-proj:hover { border-color: #cf222e; background: #fff; }
 
-.btn-primary:hover {
-    background-color: #0b5ed7;
-}
-
-.btn-outline-secondary {
-    color: #6c757d;
-    border-color: #6c757d;
-}
-
-/* 历史记录列表 */
-.list-group-item {
-    border: none;
-    border-bottom: 1px solid #e9ecef;
-    margin-bottom: 5px;
-    border-radius: 4px !important;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.list-group-item:hover {
-    background-color: #e2e6ea; /* 悬停变灰 */
-    transform: translateX(2px); /* 微微右移的动效 */
-}
-
-.list-group-item small {
-    display: block;
-    color: #6c757d;
-    font-size: 10px;
-    text-transform: uppercase;
-    margin-bottom: 2px;
-}
-
-.list-group-item strong {
-    font-size: 13px;
-    color: #212529;
-}
+textarea { font-family: Consolas, monospace; font-size: 11px; }
+.badge-lang { font-size: 10px; background-color: #eee; color: #555; border-radius: 4px; padding: 1px 5px; margin-left: 5px;}
