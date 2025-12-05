@@ -1,4 +1,4 @@
-/* static/js/taskpane.js v4.0 */
+/* static/js/taskpane.js v4.5 - 智能表格全选吸取 */
 
 // 全局变量
 let deleteTarget = null; 
@@ -7,26 +7,23 @@ let confirmModal = null;
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
         $(document).ready(function () {
-            console.log("✅ CodeWeaver v4.0 (Event Delegation) Ready");
+            console.log("✅ CodeWeaver v4.5 Ready");
             
             // 1. 初始化
             syncProjectName();
             loadSnippets();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
-            // 2. 绑定静态按钮 (编辑器页)
+            // 2. 绑定静态按钮
             $('#btnSave').click(saveSnippet);
             $('#btnInsert').click(insertHighlight);
             $('#btnGetSelection').click(getFromSelection);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(loadSnippets);
-            $('#library-tab').click(loadSnippets); // 点击 Tab 也刷新
+            $('#library-tab').click(loadSnippets);
 
-            // 4. 【核心】绑定动态列表按钮 (事件委托)
-            // 这种写法确保即使是新加载出来的 HTML，点击也没问题
-            
-            // A. 点击标题 -> 加载到编辑器
+            // 4. 事件委托
             $(document).on('click', '.action-load-editor', function() {
                 const code = decodeURIComponent($(this).data('code'));
                 const lang = $(this).data('lang');
@@ -35,29 +32,25 @@ Office.onReady((info) => {
                 new bootstrap.Tab('#editor-tab').show();
             });
 
-            // B. 点击定位 -> 在文档中搜索
             $(document).on('click', '.action-locate', function() {
                 const code = decodeURIComponent($(this).data('code'));
                 locateInDoc(code);
             });
 
-            // C. 点击删除代码 -> 弹窗
             $(document).on('click', '.action-del-snippet', function() {
                 const id = $(this).data('id');
                 const title = $(this).data('title');
                 askDeleteSnippet(id, title);
             });
 
-            // D. 点击删除项目 -> 弹窗
             $(document).on('click', '.action-del-project', function() {
-                const name = $(this).data('name'); // 注意这里取的是 data-name
+                const name = $(this).data('name');
                 askDeleteProject(name);
             });
 
-            // E. 确认删除按钮
             $('#btnConfirmDelete').click(performDelete);
 
-            // 5. 搜索功能
+            // 5. 搜索过滤
             $('#searchBox').on('keyup', function() {
                 var val = $(this).val().toLowerCase();
                 $(".snippet-item").each(function() {
@@ -91,7 +84,6 @@ function syncProjectName() {
     } catch (e) {}
 }
 
-// 1. 保存
 async function saveSnippet() {
     const code = $('#codeSource').val();
     const project = $('#inputProject').val() || "默认";
@@ -114,7 +106,6 @@ async function saveSnippet() {
     } catch (e) { showStatus("❌ 错误", "error"); }
 }
 
-// 2. 加载列表 (生成 data-* 属性)
 async function loadSnippets() {
     try {
         const res = await fetch('/api/snippets?t=' + Date.now());
@@ -128,9 +119,6 @@ async function loadSnippets() {
         }
 
         for (const [projName, items] of Object.entries(grouped)) {
-            // HTML 安全处理：把项目名放到 data-name 里
-            // 注意：这里我们不需要自己拼 onclick 字符串了，所以引号问题好解决多了
-            
             let html = `
                 <div class="project-card">
                     <div class="project-header">
@@ -141,7 +129,6 @@ async function loadSnippets() {
             `;
             items.forEach(item => {
                 const safeCode = encodeURIComponent(item.code);
-                
                 html += `
                     <div class="snippet-item">
                         <div class="d-flex align-items-center text-truncate" style="flex:1;">
@@ -172,7 +159,6 @@ async function loadSnippets() {
     } catch (e) { console.error(e); }
 }
 
-// 3. 删除逻辑 (弹窗)
 function askDeleteSnippet(id, title) {
     deleteTarget = { type: 'snippet', id: id };
     $('#confirmMsg').text(`确认删除代码 "${title}" 吗？`);
@@ -207,21 +193,22 @@ async function performDelete() {
         
         const res = await fetch(url, opts);
         if ((await res.json()).status === 'success') {
-            loadSnippets(); // 刷新
+            loadSnippets(); 
         } else { alert("删除失败"); }
     } catch (e) { alert("网络错误"); }
 }
 
-// 4. 其他逻辑
 async function insertHighlight() {
     const code = $('#codeSource').val();
     const lang = $('#langSelect').val();
+    const theme = $('#themeSelect').val(); 
+
     if (!code) return showStatus("❌ 代码为空", "error");
     try {
         const res = await fetch('/api/render', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({code, language: lang})
+            body: JSON.stringify({code, language: lang, theme: theme})
         });
         const data = await res.json();
         if(data.status === 'success') {
@@ -233,30 +220,142 @@ async function insertHighlight() {
     } catch(e) {}
 }
 
+// 【关键修复：智能吸取模式】
 async function getFromSelection() {
     try {
         await Word.run(async (ctx) => {
-            const r = ctx.document.getSelection();
-            r.load("text");
+            // 1. 获取当前选区
+            let range = ctx.document.getSelection();
+            
+            // 【核心逻辑】检查光标是否在表格内
+            const parentTable = range.parentTableOrNullObject;
+            ctx.load(parentTable);
             await ctx.sync();
-            if(r.text) $('#codeSource').val(r.text);
-        });
-    } catch(e){}
-}
 
-async function locateInDoc(code) {
-    const searchKey = code.substring(0, 50).trim();
-    try {
-        await Word.run(async (ctx) => {
-            const r = ctx.document.body.search(searchKey, { matchCase: true });
-            ctx.load(r);
+            // 如果在表格里，强制把“选区”扩展为“整个表格”
+            // 这样哪怕你只点了一下代码块，也能吸取全部代码！
+            if (!parentTable.isNullObject) {
+                range = parentTable.getRange();
+            }
+            
+            // 2. 尝试 HTML 解析 (结构化数据)
+            const htmlResult = range.getHtml();
             await ctx.sync();
-            if (r.items.length > 0) {
-                r.items[0].select();
-                showStatus("✅ 已定位");
+            const html = htmlResult.value;
+
+            let extractedHtmlCode = [];
+            let htmlSuccess = false;
+
+            if (html) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const rows = doc.querySelectorAll('tr');
+                
+                if (rows.length > 0) {
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        // 逻辑：如果有多个单元格，取最后一个；如果只有一个，就取那一个
+                        let codeCell = null;
+                        if (cells.length >= 2) codeCell = cells[cells.length - 1];
+                        else if (cells.length === 1) codeCell = cells[0];
+
+                        if (codeCell) {
+                            let text = codeCell.textContent || codeCell.innerText;
+                            text = text.replace(/\u00a0/g, ' '); 
+                            extractedHtmlCode.push(text.replace(/[\r\n]+$/, ''));
+                        }
+                    });
+                    if (extractedHtmlCode.length > 0) htmlSuccess = true;
+                }
+            }
+
+            if (htmlSuccess) {
+                $('#codeSource').val(extractedHtmlCode.join('\n'));
+                return showStatus("✅ 已从表格吸取");
+            }
+
+            // 3. 尝试文本强力解析 (备用)
+            range.load("text");
+            await ctx.sync();
+            let rawText = range.text;
+            
+            if (rawText && rawText.trim()) {
+                const lines = rawText.split(/\r\n|\r|\n/);
+                const cleanedLines = lines.map(line => {
+                    // 正则增强：移除行首的数字和空白
+                    return line.replace(/^\s*\d+\s*/, '');
+                });
+                
+                $('#codeSource').val(cleanedLines.join('\n'));
+                showStatus("✅ 已吸取 (文本模式)");
             } else {
-                showStatus("⚠️ 未找到", "error");
+                showStatus("⚠️ 未选中内容", "error");
             }
         });
-    } catch(e){}
+    } catch(e){
+        console.error(e);
+        showStatus("❌ 吸取失败", "error");
+    }
+}
+
+// 【智能定位】
+async function locateInDoc(code) {
+    if (!code) return;
+    
+    const lines = code.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return;
+
+    let searchCandidates = [];
+
+    // 1. 最长的一行 (最独特，首选)
+    let maxLine = "";
+    for(let l of lines) {
+        if(l.length > maxLine.length && l.length < 200) maxLine = l;
+    }
+    if (maxLine) searchCandidates.push(maxLine);
+
+    // 2. 第一行 (如果不短的话)
+    if (lines[0].length > 5) searchCandidates.push(lines[0]);
+
+    // 3. 最后一行 (如果不短的话)
+    if (lines[lines.length-1].length > 5) searchCandidates.push(lines[lines.length-1]);
+
+    searchCandidates = [...new Set(searchCandidates)];
+
+    if (searchCandidates.length === 0) return showStatus("⚠️ 代码太短无法定位", "error");
+
+    try {
+        await Word.run(async (ctx) => {
+            let foundRange = null;
+
+            for (let key of searchCandidates) {
+                const results = ctx.document.body.search(key, { matchCase: true, ignoreSpace: true });
+                ctx.load(results);
+                await ctx.sync();
+
+                if (results.items.length > 0) {
+                    foundRange = results.items[0];
+                    break;
+                }
+            }
+
+            if (foundRange) {
+                const parentTable = foundRange.parentTableOrNullObject;
+                ctx.load(parentTable);
+                await ctx.sync();
+
+                if (!parentTable.isNullObject) {
+                    parentTable.select();
+                    showStatus("✅ 已定位 (整块)");
+                } else {
+                    foundRange.select();
+                    showStatus("✅ 已定位 (单行)");
+                }
+                
+                ctx.document.getSelection().context.sync();
+            } else {
+                showStatus("⚠️ 文档中未找到", "error");
+            }
+        });
+    } catch(e){ console.error(e); }
 }
