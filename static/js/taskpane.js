@@ -205,21 +205,125 @@ async function insertHighlight() {
 
     if (!code) return showStatus("❌ 代码为空", "error");
     try {
-        const res = await fetch('/api/render', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({code, language: lang, theme: theme})
+        const html = generateHighlightHtml(code, lang, theme)
+        await Word.run(async (ctx)=>{
+            ctx.document.getSelection().insertHtml(html, 'Replace');
+            await ctx.sync();
         });
-        const data = await res.json();
-        if(data.status === 'success') {
-            await Word.run(async (ctx) => {
-                ctx.document.getSelection().insertHtml(data.html, "Replace");
-                await ctx.sync();
-            });
-        } else showStatus("❌ 渲染失败", "error");
-    } catch(e) {}
+        showStatus("✅ 成功插入");
+    } catch (e) {
+        console.error(e);
+        showStatus("❌ 插入失败:"+ e.message, "error");
+    }
 }
 
+/**
+ * 本地生成高亮 HTML (基于 highlight.js)
+ * 复刻原 Python 后端逻辑，保留表格样式和 Word 兼容性
+ */
+/**
+ * 本地生成高亮 HTML (终极版：修复行距 + 内联颜色样式)
+ */
+function generateHighlightHtml(code, lang, theme) {
+    if (!code) return '';
+
+    // --- 1. 定义语法高亮颜色方案 (内联样式映射) ---
+    // 分为 'light' (用于 gray/green 主题) 和 'dark' (用于 dark 主题)
+    const syntaxThemes = {
+        light: {
+            'keyword': 'color:#d73a49; font-weight:bold;',       // 关键字 (红)
+            'built_in': 'color:#005cc5;',                         // 内置函数 (蓝)
+            'type': 'color:#005cc5;',                             // 类型
+            'literal': 'color:#005cc5;',                          // 字面量
+            'number': 'color:#005cc5;',                           // 数字
+            'string': 'color:#032f62;',                           // 字符串 (深蓝)
+            'title': 'color:#6f42c1; font-weight:bold;',          // 函数名 (紫)
+            'attr': 'color:#22863a;',                             // 属性 (绿)
+            'comment': 'color:#6a737d; font-style:italic;',       // 注释 (灰斜体)
+            'variable': 'color:#24292f;',                         // 变量
+            'symbol': 'color:#005cc5;',                           // 符号
+            'function': 'color:#6f42c1;',                         // 函数调用
+            'default': 'color:#24292f;'                           // 默认文本
+        },
+        dark: {
+            'keyword': 'color:#f92672; font-weight:bold;',        // Monokai 风格
+            'built_in': 'color:#66d9ef;',
+            'type': 'color:#66d9ef;',
+            'literal': 'color:#ae81ff;',
+            'number': 'color:#ae81ff;',
+            'string': 'color:#e6db74;',
+            'title': 'color:#a6e22e; font-weight:bold;',
+            'attr': 'color:#a6e22e;',
+            'comment': 'color:#75715e; font-style:italic;',
+            'variable': 'color:#f8f8f2;',
+            'symbol': 'color:#ae81ff;',
+            'function': 'color:#a6e22e;',
+            'default': 'color:#f8f8f2;'
+        }
+    };
+
+    // 根据用户选择的主题决定使用哪套语法颜色
+    const currentSyntax = (theme === 'dark') ? syntaxThemes.dark : syntaxThemes.light;
+
+    // --- 2. 容器样式配置 ---
+    let bg_code = '#f6f8fa'; let bg_num = '#fff'; let color_code = '#24292f'; let color_num = '#6e7781'; let border = '#d0d7de';
+    
+    if (theme === 'dark') { 
+        bg_code = '#272822'; bg_num = '#fff'; color_code = '#f8f8f2'; border = '#272822'; 
+    } else if (theme === 'green') {
+        bg_code = '#e9f5e9'; border = '#e9f5e9'; // 护眼绿
+    }
+    
+    // padding:0; margin:0; line-height:100% 是防止 Word 默认段落间距干扰的关键
+    const style_common = "padding:0; margin:0; border:none; line-height:100%; vertical-align:middle;";
+    const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
+    const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
+    const border_style = "1.5pt solid " + border;
+
+    // --- 3. 生成 HTML ---
+    let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
+
+    const lines = code.split(/\r?\n/);
+    lines.forEach((line, i) => {
+        let lineHtml = '';
+        try {
+            if (!line) {
+                lineHtml = '&nbsp;';
+            } else if (typeof hljs !== 'undefined') {
+                // A. 调用 highlight.js 生成带有 class 的 HTML
+                const res = (lang && lang !== 'auto') 
+                    ? hljs.highlight(line, {language: lang, ignoreIllegals:true}) 
+                    : hljs.highlightAuto(line);
+                let rawHtml = res.value;
+
+                // B. 【核心步骤】正则替换：把 class="hljs-xxx" 变成 style="..."
+                lineHtml = rawHtml.replace(/<span class="hljs-([^"]+)">/g, (match, cls) => {
+                    // cls 可能是 "keyword" 或 "keyword language-python" 等，只取第一个词
+                    const key = cls.split(' ')[0]; 
+                    const style = currentSyntax[key] || '';
+                    return style ? `<span style="${style}">` : `<span>`; // 如果有对应颜色就替换，否则保持原样
+                });
+
+            } else {
+                // 降级处理
+                lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+            }
+        } catch(e) { 
+            lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;"); 
+        }
+
+        // 边框逻辑
+        let cellBorder = `border-left:${border_style}; border-right:${border_style};`;
+        if (i === 0) cellBorder += `border-top:${border_style};`;
+        if (i === lines.length - 1) cellBorder += `border-bottom:${border_style};`;
+
+        // 拼接 (紧凑模式)
+        html += `<tr><td style="${style_num}">${i + 1}</td><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
+    });
+
+    html += "</table>";
+    return html;
+}
 // 【关键修复：智能吸取模式】
 async function getFromSelection() {
     try {
