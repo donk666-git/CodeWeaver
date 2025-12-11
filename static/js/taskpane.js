@@ -8,6 +8,10 @@ Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
         $(document).ready(function () {
             console.log("✅ CodeWeaver v4.5 Ready");
+
+            if (window.hljs) {
+                hljs.configure({ ignoreUnescapedHTML: true });
+            }
             
             // 1. 初始化
             syncProjectName();
@@ -276,12 +280,12 @@ function generateHighlightHtml(code, lang, theme) {
     
     // padding:0; margin:0; line-height:100% 是防止 Word 默认段落间距干扰的关键
     const style_common = "padding:0; margin:0; border:none; line-height:100%; vertical-align:middle;";
-    const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
-    const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
+    const style_num = `width:34px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:6px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
+    const style_code = `width:calc(100% - 34px); background-color:${bg_code}; color:${color_code}; padding-left:4px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
 
     // --- 3. 生成 HTML ---
-    let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
+    let html = `<table style="width:100%; table-layout:fixed; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
 
     const lines = code.split(/\r?\n/);
     lines.forEach((line, i) => {
@@ -313,12 +317,13 @@ function generateHighlightHtml(code, lang, theme) {
         }
 
         // 边框逻辑
-        let cellBorder = `border-left:${border_style}; border-right:${border_style};`;
-        if (i === 0) cellBorder += `border-top:${border_style};`;
-        if (i === lines.length - 1) cellBorder += `border-bottom:${border_style};`;
+        let numBorder = `border-left:${border_style}; border-right:${border_style};`;
+        let codeBorder = `border-right:${border_style};`;
+        if (i === 0) { numBorder += `border-top:${border_style};`; codeBorder += `border-top:${border_style};`; }
+        if (i === lines.length - 1) { numBorder += `border-bottom:${border_style};`; codeBorder += `border-bottom:${border_style};`; }
 
         // 拼接 (紧凑模式)
-        html += `<tr><td style="${style_num}">${i + 1}</td><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
+        html += `<tr><td style="${style_num} ${numBorder}">${i + 1}</td><td style="${style_code} ${codeBorder}">${lineHtml}</td></tr>`;
     });
 
     html += "</table>";

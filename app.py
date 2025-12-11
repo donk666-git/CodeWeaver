@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name, guess_lexer
 from pygments.formatters import HtmlFormatter
@@ -11,6 +11,12 @@ app = Flask(__name__)
 @app.route('/taskpane.html')
 def taskpane():
     return render_template('taskpane.html')
+
+
+@app.route('/highlight/<path:filename>')
+def highlight_assets(filename):
+    """Serve locally bundled highlight.js assets for offline stability."""
+    return send_from_directory('highlight', filename)
 
 
 @app.route('/api/snippets', methods=['POST'])

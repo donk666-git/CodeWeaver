@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CodeWeaver Pro</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('highlight_assets', filename='styles/default.min.css') }}">
+    <script src="{{ url_for('highlight_assets', filename='highlight.min.js') }}" onerror="this.src='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js'"></script>
     <style>pre, code { font-family: 'Courier New', monospace; }</style>
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
