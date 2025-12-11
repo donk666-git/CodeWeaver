@@ -16,6 +16,58 @@ def highlight_assets(filename):
     return send_from_directory('highlight', filename)
 
 
+def _summarize_code(code: str, language: str) -> str:
+    """Generate a lightweight, local explanation for the provided code."""
+    lines = [ln.rstrip() for ln in code.splitlines() if ln.strip()]
+    line_count = len(lines)
+    max_preview = 3
+    preview = '\n'.join(lines[:max_preview]) if lines else ''
+
+    keywords = {
+        'python': ['def ', 'class ', 'import ', 'async ', 'yield '],
+        'javascript': ['function ', 'const ', 'let ', 'class ', '=>'],
+        'java': ['class ', 'public ', 'private ', 'static ', 'void '],
+        'c': ['#include', 'int main', 'printf', 'struct '],
+        'cpp': ['#include', 'std::', 'template', 'namespace'],
+        'csharp': ['using ', 'namespace ', 'class ', 'public ', 'Task<'],
+        'go': ['package ', 'func ', 'import ', 'defer '],
+        'rust': ['fn ', 'let ', 'impl ', 'pub ', 'trait '],
+    }
+
+    detected = []
+    lang_key = language.lower() if language else 'auto'
+    for key, markers in keywords.items():
+        if key == lang_key or lang_key == 'auto':
+            for marker in markers:
+                if any(marker in ln for ln in lines):
+                    detected.append(key)
+                    break
+
+    lang_hint = lang_key if lang_key != 'auto' else (detected[0] if detected else '未知语言')
+    headline = f"共 {line_count} 行代码，推测语言：{lang_hint}。"
+    details = []
+
+    def count_contains(substr: str) -> int:
+        return sum(1 for ln in lines if substr in ln)
+
+    function_like = count_contains('def ') + count_contains('function ') + count_contains('func ')
+    if function_like:
+        details.append(f"检测到 {function_like} 个函数/方法定义。")
+
+    class_like = count_contains('class ')
+    if class_like:
+        details.append(f"包含 {class_like} 个类定义。")
+
+    import_like = count_contains('import ') + count_contains('#include') + count_contains('using ')
+    if import_like:
+        details.append(f"有 {import_like} 处依赖导入。")
+
+    if preview:
+        details.append(f"前几行示例：\n{preview}")
+
+    return headline + (" " + ' '.join(details) if details else '')
+
+
 @app.route('/api/snippets', methods=['POST'])
 def save_snippet():
     try:
@@ -36,6 +88,20 @@ def save_snippet():
         if success:
             return jsonify({'status': 'success', 'mode': mode, 'id': new_id})
         return jsonify({'status': 'error'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/explain', methods=['POST'])
+def explain_snippet():
+    try:
+        data = request.json or {}
+        code = data.get('code', '')
+        language = data.get('language', 'auto')
+        if not code.strip():
+            return jsonify({'status': 'error', 'message': 'empty code'}), 400
+        explanation = _summarize_code(code, language)
+        return jsonify({'status': 'success', 'explanation': explanation})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

@@ -43,9 +43,9 @@
             </div>
             <div class="mb-2">
     <select id="themeSelect" class="form-select form-select-sm">
-        <option value="gray">🎨 经典灰框 (独立行号)</option>
-        <option value="dark">🌑 极客全黑 (VS风格)</option>
-        <option value="green">🍃 护眼绿底 (作者风格)</option>
+        <option value="gray">🎨 经典灰</option>
+        <option value="dark">🌑 极客全黑</option>
+        <option value="green">🍃 护眼绿</option>
     </select>
 </div>
             <div class="mb-3 position-relative">
@@ -54,6 +54,7 @@
             </div>
             <div class="d-grid gap-2">
                 <button type="button" class="btn btn-primary" id="btnInsert">⚡ 插入高亮</button>
+                <button type="button" class="btn btn-warning" id="btnExplain">🤖 讲解代码</button>
                 <button type="button" class="btn btn-success" id="btnSave">💾 保存</button>
                 <button type="button" class="btn btn-outline-secondary" id="btnNew">🆕 新建</button>
             </div>
@@ -79,6 +80,20 @@
                 <div class="modal-footer py-1">
                     <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">取消</button>
                     <button type="button" class="btn btn-sm btn-danger" id="btnConfirmDelete">删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="explainModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold">🤖 代码讲解</h6>
+                </div>
+                <div class="modal-body" id="explainContent" style="white-space:pre-wrap; font-family: 'Courier New', monospace; font-size: 10pt;"></div>
+                <div class="modal-footer py-1">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">关闭</button>
                 </div>
             </div>
         </div>

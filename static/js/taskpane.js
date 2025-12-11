@@ -5,6 +5,7 @@ let deleteTarget = null;
 let confirmModal = null;
 let currentSnippetId = null;
 let searchTimer = null;
+let explainModal = null;
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -22,11 +23,13 @@ Office.onReady((info) => {
             syncProjectName();
             loadSnippets();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+            explainModal = new bootstrap.Modal(document.getElementById('explainModal'));
 
             // 2. 绑定静态按钮
             $('#btnSave').click(saveSnippet);
             $('#btnNew').click(() => { resetEditorState(true); showStatus('🆕 新建空白'); });
             $('#btnInsert').click(insertHighlight);
+            $('#btnExplain').click(explainCurrentCode);
             $('#btnGetSelection').click(getFromSelection);
             
             // 3. 绑定静态按钮 (项目库页)
@@ -208,6 +211,30 @@ async function saveSnippet() {
     } catch (e) { showStatus("❌ 错误", "error"); }
 }
 
+async function explainCurrentCode() {
+    const code = $('#codeSource').val();
+    const language = $('#langSelect').val() || 'auto';
+    if (!code.trim()) return showStatus("⚠️ 没有可讲解的代码", "error");
+
+    try {
+        $('#explainContent').text('⏳ 正在分析代码...');
+        explainModal.show();
+        const res = await fetch('/api/explain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, language })
+        });
+        const payload = await res.json();
+        if (payload.status === 'success') {
+            $('#explainContent').text(payload.explanation || '暂无结果');
+        } else {
+            $('#explainContent').text('❌ 解析失败：' + (payload.message || '未知错误'));
+        }
+    } catch (e) {
+        $('#explainContent').text('❌ 解析失败：' + e.message);
+    }
+}
+
 async function loadSnippets(keyword = '') {
     try {
         const searchParam = keyword ? `&q=${encodeURIComponent(keyword)}` : '';
@@ -375,67 +402,48 @@ function generateHighlightHtml(code, lang, theme) {
     // 根据用户选择的主题决定使用哪套语法颜色
     const currentSyntax = (theme === 'dark') ? syntaxThemes.dark : syntaxThemes.light;
 
-    // --- 2. 容器样式配置 ---
-    let bg_code = '#f6f8fa'; let bg_num = '#f8f8f8'; let color_code = '#24292f'; let color_num = '#6e7781'; let border = '#d0d7de';
-    
-    if (theme === 'dark') { 
-        bg_code = '#272822'; bg_num = '#fff'; color_code = '#f8f8f2'; border = '#272822'; 
-    } else if (theme === 'green') {
-        bg_code = '#e9f5e9'; border = '#e9f5e9'; // 护眼绿
-    }
-    
-    // padding:0; margin:0; line-height:100% 是防止 Word 默认段落间距干扰的关键
-    const style_common = "padding:0; margin:0; border:none; line-height:120%; vertical-align:middle;";
-    const lineNumWidth = 42;
-    const style_table = "width:100%; table-layout:fixed; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:transparent; mso-table-lspace:0pt; mso-table-rspace:0pt;";
-    const style_num = `width:${lineNumWidth}px; background-color:${bg_num}; color:${color_num}; text-align:right; padding:2px 6px 2px 4px; user-select:none; font-family:'Times New Roman'; font-size:8pt; ${style_common}`;
-    const style_code = `width:calc(100% - ${lineNumWidth}px); background-color:${bg_code}; color:${color_code}; padding:4px 10px; text-indent:0; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
-    const border_style = "1.5pt solid " + border;
+    // --- 2. 主题参数 (背景 + 文字颜色) ---
+    const themeMeta = {
+        gray: { bg: '#f6f8fa', text: '#24292f', syntax: 'light' },
+        green: { bg: '#eef5ed', text: '#1f2933', syntax: 'light' },
+        dark: { bg: '#0d1117', text: '#c9d1d9', syntax: 'dark' }
+    };
+    const chosen = themeMeta[theme] || themeMeta.gray;
 
-    // --- 3. 生成 HTML ---
-    let html = `<table style="${style_table}">`;
-
-    const lines = code.split(/\r?\n/);
-    lines.forEach((line, i) => {
-        let lineHtml = '';
-        try {
-            if (!line) {
-                lineHtml = '&nbsp;';
-            } else if (typeof hljs !== 'undefined') {
-                // A. 调用 highlight.js 生成带有 class 的 HTML
-                const res = (lang && lang !== 'auto') 
-                    ? hljs.highlight(line, {language: lang, ignoreIllegals:true}) 
-                    : hljs.highlightAuto(line);
-                let rawHtml = res.value;
-
-                // B. 【核心步骤】正则替换：把 class="hljs-xxx" 变成 style="..."
-                lineHtml = rawHtml.replace(/<span class="hljs-([^"]+)">/g, (match, cls) => {
-                    // cls 可能是 "keyword" 或 "keyword language-python" 等，只取第一个词
-                    const key = cls.split(' ')[0]; 
-                    const style = currentSyntax[key] || '';
-                    return style ? `<span style="${style}">` : `<span>`; // 如果有对应颜色就替换，否则保持原样
-                });
-
-            } else {
-                // 降级处理
-                lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            }
-        } catch(e) {
-            lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // --- 3. 整块高亮，无行号 ---
+    let highlighted = '';
+    try {
+        if (typeof hljs !== 'undefined') {
+            const res = (lang && lang !== 'auto')
+                ? hljs.highlight(code, {language: lang, ignoreIllegals:true})
+                : hljs.highlightAuto(code);
+            highlighted = res.value;
+            highlighted = highlighted.replace(/<span class="hljs-([^"]+)">/g, (match, cls) => {
+                const key = cls.split(' ')[0];
+                const style = currentSyntax[key] || '';
+                return style ? `<span style="${style}">` : '<span>';
+            });
+        } else {
+            highlighted = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
+    } catch(e) {
+        highlighted = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
 
-        // 边框逻辑
-        let numBorder = `border-left:${border_style}; border-right:${border_style};`;
-        let codeBorder = `border-right:${border_style};`;
-        if (i === 0) { numBorder += `border-top:${border_style};`; codeBorder += `border-top:${border_style};`; }
-        if (i === lines.length - 1) { numBorder += `border-bottom:${border_style};`; codeBorder += `border-bottom:${border_style};`; }
+    const preStyle = [
+        'margin:0;',
+        'padding:10px 12px;',
+        `background:${chosen.bg};`,
+        'border:1px solid rgba(0,0,0,0.08);',
+        'border-radius:6px;',
+        "font-family:'Courier New', monospace;",
+        'font-size:10pt;',
+        'line-height:1.45;',
+        'white-space:pre;',
+        `color:${chosen.text};`
+    ].join(' ');
 
-        // 拼接 (紧凑模式)
-        html += `<tr><td style="${numBorder} ${style_num}">${i + 1}</td><td style="${codeBorder} ${style_code}"><pre style="margin:0; white-space:pre;">${lineHtml || '&nbsp;'}</pre></td></tr>`;
-    });
-
-    html += "</table>";
-    return html;
+    return `<pre style="${preStyle}">${highlighted}</pre>`;
 }
 // 【关键修复：智能吸取模式】
 async function getFromSelection() {
@@ -467,7 +475,7 @@ async function getFromSelection() {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 const rows = doc.querySelectorAll('tr');
-                
+
                 if (rows.length > 0) {
                     rows.forEach(row => {
                         const cells = row.querySelectorAll('td');
@@ -478,11 +486,20 @@ async function getFromSelection() {
 
                         if (codeCell) {
                             let text = codeCell.textContent || codeCell.innerText;
-                            text = text.replace(/\u00a0/g, ' '); 
+                            text = text.replace(/\u00a0/g, ' ');
                             extractedHtmlCode.push(text.replace(/[\r\n]+$/, ''));
                         }
                     });
                     if (extractedHtmlCode.length > 0) htmlSuccess = true;
+                } else {
+                    const pre = doc.querySelector('pre');
+                    if (pre) {
+                        const text = (pre.textContent || '').replace(/\u00a0/g, ' ');
+                        if (text.trim()) {
+                            extractedHtmlCode.push(text);
+                            htmlSuccess = true;
+                        }
+                    }
                 }
             }
 

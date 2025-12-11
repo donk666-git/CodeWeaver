@@ -23,5 +23,5 @@ body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size
 .btn-del-proj { color: #cf222e; font-size: 12px; border: 1px solid transparent; padding: 2px 6px; border-radius: 4px; background: none; }
 .btn-del-proj:hover { border-color: #cf222e; background: #fff; }
 
-textarea { font-family: Consolas, monospace; font-size: 11px; }
+textarea { font-family: 'Courier New', monospace; font-size: 10pt; }
 .badge-lang { font-size: 10px; background-color: #eee; color: #555; border-radius: 4px; padding: 1px 5px; margin-left: 5px;}
