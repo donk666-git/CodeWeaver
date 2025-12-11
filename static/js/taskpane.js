@@ -1,8 +1,10 @@
 /* static/js/taskpane.js v4.5 - 智能表格全选吸取 */
 
 // 全局变量
-let deleteTarget = null; 
+let deleteTarget = null;
 let confirmModal = null;
+let currentSnippetId = null;
+let searchTimer = null;
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -12,7 +14,10 @@ Office.onReady((info) => {
             if (window.hljs) {
                 hljs.configure({ ignoreUnescapedHTML: true });
             }
-            
+
+            buildLanguageOptions();
+            updateSaveButtonLabel();
+
             // 1. 初始化
             syncProjectName();
             loadSnippets();
@@ -20,19 +25,31 @@ Office.onReady((info) => {
 
             // 2. 绑定静态按钮
             $('#btnSave').click(saveSnippet);
+            $('#btnNew').click(() => { resetEditorState(true); showStatus('🆕 新建空白'); });
             $('#btnInsert').click(insertHighlight);
             $('#btnGetSelection').click(getFromSelection);
             
             // 3. 绑定静态按钮 (项目库页)
-            $('#btnRefresh').click(loadSnippets);
-            $('#library-tab').click(loadSnippets);
+            $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
+            $('#library-tab').click(() => loadSnippets($('#searchBox').val()));
+
+            $('#langSelect').on('change', function() {
+                // 用户手动选择语言后仍保留列表顺序，不需要额外逻辑
+            });
 
             // 4. 事件委托
             $(document).on('click', '.action-load-editor', function() {
                 const code = decodeURIComponent($(this).data('code'));
                 const lang = $(this).data('lang');
+                const sid = $(this).data('id');
+                const proj = $(this).data('project');
+                const title = $(this).data('title');
                 $('#codeSource').val(code);
                 $('#langSelect').val(lang);
+                if (proj) $('#inputProject').val(proj);
+                if (title) $('#inputTitle').val(title);
+                currentSnippetId = sid || null;
+                updateSaveButtonLabel();
                 new bootstrap.Tab('#editor-tab').show();
             });
 
@@ -54,12 +71,11 @@ Office.onReady((info) => {
 
             $('#btnConfirmDelete').click(performDelete);
 
-            // 5. 搜索过滤
+            // 5. 搜索过滤（后端模糊匹配：标题 / 代码 / 项目名）
             $('#searchBox').on('keyup', function() {
-                var val = $(this).val().toLowerCase();
-                $(".snippet-item").each(function() {
-                    $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
-                });
+                const val = $(this).val();
+                if (searchTimer) clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => loadSnippets(val), 220);
             });
         });
     }
@@ -71,6 +87,86 @@ function showStatus(msg, type='info') {
     const color = type === 'error' ? 'text-danger' : 'text-success';
     $('#statusMsg').html(`<span class="${color}">${msg}</span>`);
     setTimeout(() => $('#statusMsg').empty(), 3000);
+}
+
+const LANGUAGE_LABELS = {
+    'bash': 'Bash / Shell',
+    'c': 'C',
+    'cpp': 'C++',
+    'csharp': 'C#',
+    'css': 'CSS',
+    'go': 'Go',
+    'html': 'HTML / XML',
+    'java': 'Java',
+    'javascript': 'JavaScript',
+    'json': 'JSON',
+    'kotlin': 'Kotlin',
+    'lua': 'Lua',
+    'matlab': 'MATLAB',
+    'objectivec': 'Objective-C',
+    'perl': 'Perl',
+    'php': 'PHP',
+    'python': 'Python',
+    'r': 'R',
+    'ruby': 'Ruby',
+    'rust': 'Rust',
+    'scala': 'Scala',
+    'sql': 'SQL',
+    'swift': 'Swift',
+    'typescript': 'TypeScript',
+    'yaml': 'YAML'
+};
+
+const COMMON_LANGS = [
+    'python','javascript','java','c','cpp','csharp','go','rust','php','typescript','sql','bash','html','css','json','yaml','kotlin','swift','matlab'
+];
+
+function buildLanguageOptions() {
+    const $select = $('#langSelect');
+    if (!$select.length) return;
+
+    const available = (window.hljs && typeof hljs.listLanguages === 'function') ? hljs.listLanguages() : [];
+    const availableSet = available.length ? new Set(available) : null;
+    const labelFor = (lang) => LANGUAGE_LABELS[lang] || lang.toUpperCase();
+
+    const allCandidates = available.length ? available : Array.from(new Set([...COMMON_LANGS, ...Object.keys(LANGUAGE_LABELS)]));
+
+    $select.empty();
+    $select.append('<option value="auto">✨ 自动检测</option>');
+
+    const commonOptions = [];
+    COMMON_LANGS.forEach(lang => {
+        if (!availableSet || availableSet.has(lang)) {
+            commonOptions.push(`<option value="${lang}">${labelFor(lang)}</option>`);
+        }
+    });
+    if (commonOptions.length) {
+        $select.append(`<optgroup label="常用语言">${commonOptions.join('')}</optgroup>`);
+    }
+
+    const others = allCandidates
+        .filter(lang => COMMON_LANGS.indexOf(lang) === -1)
+        .filter(lang => !availableSet || availableSet.has(lang))
+        .sort((a, b) => a.localeCompare(b));
+
+    if (others.length) {
+        const otherOpts = others.map(lang => `<option value="${lang}">${labelFor(lang)}</option>`);
+        $select.append(`<optgroup label="全部 (A-Z)">${otherOpts.join('')}</optgroup>`);
+    }
+}
+
+function updateSaveButtonLabel() {
+    $('#btnSave').text(currentSnippetId ? '💾 更新' : '💾 保存');
+}
+
+function resetEditorState(clearFields = false) {
+    currentSnippetId = null;
+    if (clearFields) {
+        $('#codeSource').val('');
+        $('#inputTitle').val('');
+        $('#langSelect').val('auto');
+    }
+    updateSaveButtonLabel();
 }
 
 function syncProjectName() {
@@ -100,19 +196,22 @@ async function saveSnippet() {
         const res = await fetch('/api/snippets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project, title, code, language: $('#langSelect').val() })
+            body: JSON.stringify({ project, title, code, language: $('#langSelect').val(), id: currentSnippetId })
         });
-        if ((await res.json()).status === 'success') {
-            showStatus("✅ 成功", "success");
-            $('#inputTitle').val('');
-            loadSnippets();
+        const payload = await res.json();
+        if (payload.status === 'success') {
+            currentSnippetId = payload.id;
+            updateSaveButtonLabel();
+            showStatus(payload.mode === 'update' ? "✅ 已更新" : "✅ 已保存", "success");
+            loadSnippets($('#searchBox').val());
         } else showStatus("❌ 失败", "error");
     } catch (e) { showStatus("❌ 错误", "error"); }
 }
 
-async function loadSnippets() {
+async function loadSnippets(keyword = '') {
     try {
-        const res = await fetch('/api/snippets?t=' + Date.now());
+        const searchParam = keyword ? `&q=${encodeURIComponent(keyword)}` : '';
+        const res = await fetch(`/api/snippets?t=${Date.now()}${searchParam}`);
         const grouped = await res.json();
         const $cont = $('#gistContainer');
         $cont.empty();
@@ -123,35 +222,42 @@ async function loadSnippets() {
         }
 
         for (const [projName, items] of Object.entries(grouped)) {
+            const safeProj = projName.replace(/"/g, '&quot;');
+            const displayProj = projName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
             let html = `
                 <div class="project-card">
                     <div class="project-header">
-                        <span>📂 ${projName}</span>
-                        <button class="btn-del-proj action-del-project" data-name="${projName}">删除文件夹</button>
+                        <span>📂 ${displayProj}</span>
+                        <button class="btn-del-proj action-del-project" data-name="${safeProj}">删除文件夹</button>
                     </div>
                     <div>
             `;
             items.forEach(item => {
                 const safeCode = encodeURIComponent(item.code);
+                const safeTitle = (item.title || '').replace(/"/g, '&quot;');
+                const displayTitle = (item.title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 html += `
                     <div class="snippet-item">
                         <div class="d-flex align-items-center text-truncate" style="flex:1;">
-                            <span class="snippet-title text-truncate action-load-editor" 
-                                  data-code="${safeCode}" 
+                            <span class="snippet-title text-truncate action-load-editor"
+                                  data-id="${item.id}"
+                                  data-title="${safeTitle}"
+                                  data-project="${safeProj}"
+                                  data-code="${safeCode}"
                                   data-lang="${item.language}"
                                   title="点击编辑">
-                                ${item.title}
+                                ${displayTitle}
                             </span>
                             <span class="badge-lang">${item.language}</span>
                         </div>
                         <div>
-                            <button class="btn-action btn-locate action-locate" 
-                                    data-code="${safeCode}" 
+                            <button class="btn-action btn-locate action-locate"
+                                    data-code="${safeCode}"
                                     title="在文档中查找">🔍</button>
-                                    
-                            <button class="btn-action btn-delete action-del-snippet" 
-                                    data-id="${item.id}" 
-                                    data-title="${item.title}" 
+
+                            <button class="btn-action btn-delete action-del-snippet"
+                                    data-id="${item.id}"
+                                    data-title="${item.title}"
                                     title="删除">🗑️</button>
                         </div>
                     </div>
@@ -197,7 +303,7 @@ async function performDelete() {
         
         const res = await fetch(url, opts);
         if ((await res.json()).status === 'success') {
-            loadSnippets(); 
+            loadSnippets($('#searchBox').val());
         } else { alert("删除失败"); }
     } catch (e) { alert("网络错误"); }
 }
@@ -270,7 +376,7 @@ function generateHighlightHtml(code, lang, theme) {
     const currentSyntax = (theme === 'dark') ? syntaxThemes.dark : syntaxThemes.light;
 
     // --- 2. 容器样式配置 ---
-    let bg_code = '#f6f8fa'; let bg_num = '#fff'; let color_code = '#24292f'; let color_num = '#6e7781'; let border = '#d0d7de';
+    let bg_code = '#f6f8fa'; let bg_num = '#f8f8f8'; let color_code = '#24292f'; let color_num = '#6e7781'; let border = '#d0d7de';
     
     if (theme === 'dark') { 
         bg_code = '#272822'; bg_num = '#fff'; color_code = '#f8f8f2'; border = '#272822'; 
@@ -279,13 +385,15 @@ function generateHighlightHtml(code, lang, theme) {
     }
     
     // padding:0; margin:0; line-height:100% 是防止 Word 默认段落间距干扰的关键
-    const style_common = "padding:0; margin:0; border:none; line-height:100%; vertical-align:middle;";
-    const style_num = `width:34px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:6px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
-    const style_code = `width:calc(100% - 34px); background-color:${bg_code}; color:${color_code}; padding-left:4px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
+    const style_common = "padding:0; margin:0; border:none; line-height:120%; vertical-align:middle;";
+    const lineNumWidth = 42;
+    const style_table = "width:100%; table-layout:fixed; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:transparent; mso-table-lspace:0pt; mso-table-rspace:0pt;";
+    const style_num = `width:${lineNumWidth}px; background-color:${bg_num}; color:${color_num}; text-align:right; padding:2px 6px 2px 4px; user-select:none; font-family:'Times New Roman'; font-size:8pt; ${style_common}`;
+    const style_code = `width:calc(100% - ${lineNumWidth}px); background-color:${bg_code}; color:${color_code}; padding:4px 10px; text-indent:0; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
 
     // --- 3. 生成 HTML ---
-    let html = `<table style="width:100%; table-layout:fixed; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
+    let html = `<table style="${style_table}">`;
 
     const lines = code.split(/\r?\n/);
     lines.forEach((line, i) => {
@@ -310,10 +418,10 @@ function generateHighlightHtml(code, lang, theme) {
 
             } else {
                 // 降级处理
-                lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+                lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             }
-        } catch(e) { 
-            lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;"); 
+        } catch(e) {
+            lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         // 边框逻辑
@@ -323,7 +431,7 @@ function generateHighlightHtml(code, lang, theme) {
         if (i === lines.length - 1) { numBorder += `border-bottom:${border_style};`; codeBorder += `border-bottom:${border_style};`; }
 
         // 拼接 (紧凑模式)
-        html += `<tr><td style="${style_num} ${numBorder}">${i + 1}</td><td style="${style_code} ${codeBorder}">${lineHtml}</td></tr>`;
+        html += `<tr><td style="${numBorder} ${style_num}">${i + 1}</td><td style="${codeBorder} ${style_code}"><pre style="margin:0; white-space:pre;">${lineHtml || '&nbsp;'}</pre></td></tr>`;
     });
 
     html += "</table>";

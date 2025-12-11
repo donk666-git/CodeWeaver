@@ -1,7 +1,4 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name, guess_lexer
-from pygments.formatters import HtmlFormatter
 import db
 import os
 import time
@@ -23,19 +20,29 @@ def highlight_assets(filename):
 def save_snippet():
     try:
         data = request.json
-        success = db.save_snippet_v2(
-            data.get('project', 'Default'), 
-            data.get('title', 'Untitled'), 
-            data.get('code', ''), 
-            data.get('language', 'auto')
-        )
-        return jsonify({'status': 'success'}) if success else jsonify({'status': 'error'}), 500
+        project = data.get('project', 'Default')
+        title = data.get('title', 'Untitled')
+        code = data.get('code', '')
+        language = data.get('language', 'auto')
+        snippet_id = data.get('id')
+
+        if snippet_id:
+            success, new_id = db.update_snippet(snippet_id, project, title, code, language)
+            mode = 'update'
+        else:
+            success, new_id = db.save_snippet_v2(project, title, code, language)
+            mode = 'create'
+
+        if success:
+            return jsonify({'status': 'success', 'mode': mode, 'id': new_id})
+        return jsonify({'status': 'error'}), 500
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/snippets', methods=['GET'])
 def get_snippets():
-    return jsonify(db.get_all_grouped())
+    keyword = request.args.get('q')
+    return jsonify(db.get_all_grouped(keyword))
 
 @app.route('/api/snippets/<int:id>', methods=['DELETE'])
 def delete_snippet(id):
