@@ -6,6 +6,7 @@ let confirmModal = null;
 let currentSnippetId = null;
 let searchTimer = null;
 let explainModal = null;
+let lastExplainText = '';
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -31,6 +32,7 @@ Office.onReady((info) => {
             $('#btnInsert').click(insertHighlight);
             $('#btnExplain').click(explainCurrentCode);
             $('#btnGetSelection').click(getFromSelection);
+            $('#btnCopyExplain').click(copyExplainText);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
@@ -80,6 +82,8 @@ Office.onReady((info) => {
                 if (searchTimer) clearTimeout(searchTimer);
                 searchTimer = setTimeout(() => loadSnippets(val), 220);
             });
+
+            $('#aiProviderHint').text('AI 讲解由 DeepSeek 驱动，失败回落到本地快速总结');
         });
     }
 });
@@ -216,9 +220,15 @@ async function explainCurrentCode() {
     const language = $('#langSelect').val() || 'auto';
     if (!code.trim()) return showStatus("⚠️ 没有可讲解的代码", "error");
 
+    const $btn = $('#btnExplain');
+    const prevText = $btn.text();
+    lastExplainText = '';
+
     try {
-        $('#explainContent').text('⏳ 正在分析代码...');
+        $('#explainContent').text('⏳ 正在调用 DeepSeek...');
+        setExplainBadge('pending');
         explainModal.show();
+        $btn.prop('disabled', true).text('🤖 讲解中...');
         const res = await fetch('/api/explain', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -226,12 +236,58 @@ async function explainCurrentCode() {
         });
         const payload = await res.json();
         if (payload.status === 'success') {
-            $('#explainContent').text(payload.explanation || '暂无结果');
+            lastExplainText = payload.explanation || '';
+            $('#explainContent').text(lastExplainText || '暂无结果');
+            setExplainBadge(payload.provider === 'deepseek' ? 'deepseek' : 'local');
+            $('#aiProviderHint').text(payload.provider === 'deepseek' ? '讲解来源：DeepSeek' : '讲解来源：本地摘要（未调用外部接口）');
         } else {
             $('#explainContent').text('❌ 解析失败：' + (payload.message || '未知错误'));
+            setExplainBadge('failed');
         }
     } catch (e) {
         $('#explainContent').text('❌ 解析失败：' + e.message);
+        setExplainBadge('failed');
+    } finally {
+        $btn.prop('disabled', false).text(prevText);
+    }
+}
+
+function setExplainBadge(provider) {
+    const $badge = $('#aiProviderBadge');
+    const $meta = $('#aiExplainMeta');
+    if (provider === 'deepseek') {
+        $badge.text('DeepSeek').removeClass('bg-secondary').addClass('bg-gradient-blue');
+        $meta.text('由 DeepSeek 生成的详细讲解');
+    } else if (provider === 'local') {
+        $badge.text('本地摘要').removeClass('bg-gradient-blue').addClass('bg-secondary');
+        $meta.text('外部调用失败，使用快速本地总结');
+    } else if (provider === 'failed') {
+        $badge.text('出错').removeClass('bg-gradient-blue').addClass('bg-secondary');
+        $meta.text('调用失败，请稍后重试');
+    } else {
+        $badge.text('准备中').removeClass('bg-secondary').addClass('bg-gradient-blue');
+        $meta.text('DeepSeek 优先 · 支持自动降级');
+    }
+}
+
+async function copyExplainText() {
+    const text = lastExplainText || $('#explainContent').text();
+    if (!text.trim()) return showStatus('⚠️ 暂无可复制的讲解', 'error');
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const tmp = document.createElement('textarea');
+            tmp.value = text;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand('copy');
+            document.body.removeChild(tmp);
+        }
+        showStatus('✅ 已复制讲解');
+    } catch (e) {
+        showStatus('❌ 复制失败', 'error');
     }
 }
 
@@ -404,9 +460,9 @@ function generateHighlightHtml(code, lang, theme) {
 
     // --- 2. 主题参数 (背景 + 文字颜色) ---
     const themeMeta = {
-        gray: { bg: '#f6f8fa', text: '#24292f', syntax: 'light' },
-        green: { bg: '#eef5ed', text: '#1f2933', syntax: 'light' },
-        dark: { bg: '#0d1117', text: '#c9d1d9', syntax: 'dark' }
+        gray: { bg: '#f6f8fb', text: '#1f2933', border: '#d0d7de', shadow: '0 2px 8px rgba(17,24,39,0.08)', syntax: 'light' },
+        green: { bg: '#eef5f0', text: '#1f2a33', border: '#c8d5c1', shadow: '0 2px 8px rgba(15,118,110,0.08)', syntax: 'light' },
+        dark: { bg: '#0d1117', text: '#c9d1d9', border: '#1f2937', shadow: '0 4px 12px rgba(0,0,0,0.45)', syntax: 'dark' }
     };
     const chosen = themeMeta[theme] || themeMeta.gray;
 
@@ -432,14 +488,16 @@ function generateHighlightHtml(code, lang, theme) {
 
     const preStyle = [
         'margin:0;',
-        'padding:10px 12px;',
+        'padding:12px 14px;',
         `background:${chosen.bg};`,
-        'border:1px solid rgba(0,0,0,0.08);',
-        'border-radius:6px;',
+        `border:1px solid ${chosen.border};`,
+        'border-radius:10px;',
+        `box-shadow:${chosen.shadow};`,
         "font-family:'Courier New', monospace;",
         'font-size:10pt;',
-        'line-height:1.45;',
+        'line-height:1.55;',
         'white-space:pre;',
+        'tab-size:4;',
         `color:${chosen.text};`
     ].join(' ');
 

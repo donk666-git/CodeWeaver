@@ -2,6 +2,16 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 import db
 import os
 import time
+import requests
+
+
+DEEPSEEK_API_KEY = os.getenv(
+    "DEEPSEEK_API_KEY",
+    # 默认密钥（如需更安全的部署，请改用环境变量覆盖）
+    "sk-gmlivjrmuzlzswitszxghneregqnamhonjoqovnlwruwdvaz"
+)
+DEEPSEEK_ENDPOINT = os.getenv("DEEPSEEK_ENDPOINT", "https://api.deepseek.com/chat/completions")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 app = Flask(__name__)
 
@@ -68,6 +78,46 @@ def _summarize_code(code: str, language: str) -> str:
     return headline + (" " + ' '.join(details) if details else '')
 
 
+def _call_deepseek(code: str, language: str) -> str | None:
+    """调用 DeepSeek API 获取更细致的讲解，失败时返回 None。"""
+    if not DEEPSEEK_API_KEY:
+        return None
+
+    prompt = (
+        "请用简洁的中文概括下面的代码：\n"
+        "1) 先给一句话总体描述（包含语言提示，如果未指定则推断）。\n"
+        "2) 用 3-5 个要点说明核心逻辑或关键函数。\n"
+        "3) 若有风险或边界情况，请列出。\n"
+        "4) 末尾给出可直接复制的简短标题。\n"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "temperature": 0.35,
+        "messages": [
+            {"role": "system", "content": "你是一名精简的中文代码讲解助手。"},
+            {
+                "role": "user",
+                "content": f"语言: {language}\n{prompt}\n\n代码如下:\n{code}"
+            }
+        ]
+    }
+
+    try:
+        resp = requests.post(DEEPSEEK_ENDPOINT, headers=headers, json=payload, timeout=18)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        message = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+        return message.strip() if message else None
+    except Exception:
+        return None
+
+
 @app.route('/api/snippets', methods=['POST'])
 def save_snippet():
     try:
@@ -100,8 +150,12 @@ def explain_snippet():
         language = data.get('language', 'auto')
         if not code.strip():
             return jsonify({'status': 'error', 'message': 'empty code'}), 400
+        ai_text = _call_deepseek(code, language)
+        if ai_text:
+            return jsonify({'status': 'success', 'explanation': ai_text, 'provider': 'deepseek'})
+
         explanation = _summarize_code(code, language)
-        return jsonify({'status': 'success', 'explanation': explanation})
+        return jsonify({'status': 'success', 'explanation': explanation, 'provider': 'local'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

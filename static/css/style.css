@@ -1,6 +1,26 @@
 /* static/css/style.css */
 
-body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size: 13px; }
+body { font-family: "Segoe UI", sans-serif; background: radial-gradient(circle at 20% 20%, #f1f4ff, #f8f9fb); font-size: 13px; }
+
+.cw-body { min-height: 100vh; }
+.cw-shell { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 14px; }
+.cw-header { background: linear-gradient(135deg, #eef2ff, #f8fafc); border: 1px solid #e0e7ff; border-radius: 12px; padding: 12px; }
+.bg-gradient-blue { background: linear-gradient(135deg, #4f8bff, #67c7ff); color: #fff; }
+.cw-tabs .nav-link { border: none; color: #6b7280; }
+.cw-tabs .nav-link.active { background: #e8f0ff; border-radius: 10px; color: #2563eb; font-weight: 600; }
+
+.cw-card { background: #fdfdfd; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 18px rgba(17, 24, 39, 0.04); }
+.cw-label { font-size: 12px; color: #6b7280; margin-bottom: 4px; display: inline-block; }
+.cw-input, .cw-select { border-radius: 10px; border-color: #e5e7eb; }
+.cw-input:focus, .cw-select:focus { border-color: #7c3aed; box-shadow: 0 0 0 0.15rem rgba(124,58,237,.15); }
+.cw-codebar { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 10px 10px 0 0; padding: 6px 10px; }
+.cw-textarea { border-radius: 0 0 10px 10px; font-family: 'Courier New', monospace; font-size: 10pt; border: 1px solid #e5e7eb; border-top: none; background: #fbfdff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); }
+.cw-btn { border-radius: 10px; font-weight: 600; }
+.cw-status-bar { min-height: 20px; }
+.cw-ai-tip { background: #f0f9ff; border: 1px dashed #bae6fd; border-radius: 10px; }
+
+textarea { font-family: 'Courier New', monospace; font-size: 10pt; }
+.badge-lang { font-size: 10px; background-color: #eee; color: #555; border-radius: 4px; padding: 1px 5px; margin-left: 5px;}
 
 /* 卡片样式优化 */
 .project-card { border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 12px; background: #fff; overflow: hidden;}
@@ -22,6 +42,3 @@ body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size
 
 .btn-del-proj { color: #cf222e; font-size: 12px; border: 1px solid transparent; padding: 2px 6px; border-radius: 4px; background: none; }
 .btn-del-proj:hover { border-color: #cf222e; background: #fff; }
-
-textarea { font-family: 'Courier New', monospace; font-size: 10pt; }
-.badge-lang { font-size: 10px; background-color: #eee; color: #555; border-radius: 4px; padding: 1px 5px; margin-left: 5px;}
