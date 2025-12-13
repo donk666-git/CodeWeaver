@@ -1,10 +1,17 @@
-from flask import Flask, render_template, request, jsonify
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name, guess_lexer
-from pygments.formatters import HtmlFormatter
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import db
 import os
 import time
+import requests
+
+
+DEEPSEEK_API_KEY = os.getenv(
+    "DEEPSEEK_API_KEY",
+    # 默认密钥（如需更安全的部署，请改用环境变量覆盖）
+    "sk-gmlivjrmuzlzswitszxghneregqnamhonjoqovnlwruwdvaz"
+)
+DEEPSEEK_ENDPOINT = os.getenv("DEEPSEEK_ENDPOINT", "https://api.deepseek.com/v1/chat/completions")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 app = Flask(__name__)
 
@@ -13,23 +20,149 @@ def taskpane():
     return render_template('taskpane.html')
 
 
+@app.route('/highlight/<path:filename>')
+def highlight_assets(filename):
+    """Serve locally bundled highlight.js assets for offline stability."""
+    return send_from_directory('highlight', filename)
+
+
+def _summarize_code(code: str, language: str) -> str:
+    """Generate a lightweight, local explanation for the provided code."""
+    lines = [ln.rstrip() for ln in code.splitlines() if ln.strip()]
+    line_count = len(lines)
+    max_preview = 3
+    preview = '\n'.join(lines[:max_preview]) if lines else ''
+
+    keywords = {
+        'python': ['def ', 'class ', 'import ', 'async ', 'yield '],
+        'javascript': ['function ', 'const ', 'let ', 'class ', '=>'],
+        'java': ['class ', 'public ', 'private ', 'static ', 'void '],
+        'c': ['#include', 'int main', 'printf', 'struct '],
+        'cpp': ['#include', 'std::', 'template', 'namespace'],
+        'csharp': ['using ', 'namespace ', 'class ', 'public ', 'Task<'],
+        'go': ['package ', 'func ', 'import ', 'defer '],
+        'rust': ['fn ', 'let ', 'impl ', 'pub ', 'trait '],
+    }
+
+    detected = []
+    lang_key = language.lower() if language else 'auto'
+    for key, markers in keywords.items():
+        if key == lang_key or lang_key == 'auto':
+            for marker in markers:
+                if any(marker in ln for ln in lines):
+                    detected.append(key)
+                    break
+
+    lang_hint = lang_key if lang_key != 'auto' else (detected[0] if detected else '未知语言')
+    headline = f"共 {line_count} 行代码，推测语言：{lang_hint}。"
+    details = []
+
+    def count_contains(substr: str) -> int:
+        return sum(1 for ln in lines if substr in ln)
+
+    function_like = count_contains('def ') + count_contains('function ') + count_contains('func ')
+    if function_like:
+        details.append(f"检测到 {function_like} 个函数/方法定义。")
+
+    class_like = count_contains('class ')
+    if class_like:
+        details.append(f"包含 {class_like} 个类定义。")
+
+    import_like = count_contains('import ') + count_contains('#include') + count_contains('using ')
+    if import_like:
+        details.append(f"有 {import_like} 处依赖导入。")
+
+    if preview:
+        details.append(f"前几行示例：\n{preview}")
+
+    return headline + (" " + ' '.join(details) if details else '')
+
+
+def _call_deepseek(code: str, language: str) -> str | None:
+    """调用 DeepSeek API 获取更细致的讲解，失败时返回 None。"""
+    if not DEEPSEEK_API_KEY:
+        return None
+
+    prompt = (
+        "请用简洁的中文概括下面的代码：\n"
+        "1) 先给一句话总体描述（包含语言提示，如果未指定则推断）。\n"
+        "2) 用 3-5 个要点说明核心逻辑或关键函数。\n"
+        "3) 若有风险或边界情况，请列出。\n"
+        "4) 末尾给出可直接复制的简短标题。\n"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": DEEPSEEK_MODEL,
+        "temperature": 0.35,
+        "messages": [
+            {"role": "system", "content": "你是一名精简的中文代码讲解助手。"},
+            {
+                "role": "user",
+                "content": f"语言: {language}\n{prompt}\n\n代码如下:\n{code}"
+            }
+        ]
+    }
+
+    try:
+        resp = requests.post(DEEPSEEK_ENDPOINT, headers=headers, json=payload, timeout=18)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        message = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+        return message.strip() if message else None
+    except Exception:
+        return None
+
+
 @app.route('/api/snippets', methods=['POST'])
 def save_snippet():
     try:
         data = request.json
-        success = db.save_snippet_v2(
-            data.get('project', 'Default'), 
-            data.get('title', 'Untitled'), 
-            data.get('code', ''), 
-            data.get('language', 'auto')
-        )
-        return jsonify({'status': 'success'}) if success else jsonify({'status': 'error'}), 500
+        project = data.get('project', 'Default')
+        title = data.get('title', 'Untitled')
+        code = data.get('code', '')
+        language = data.get('language', 'auto')
+        snippet_id = data.get('id')
+
+        if snippet_id:
+            success, new_id = db.update_snippet(snippet_id, project, title, code, language)
+            mode = 'update'
+        else:
+            success, new_id = db.save_snippet_v2(project, title, code, language)
+            mode = 'create'
+
+        if success:
+            return jsonify({'status': 'success', 'mode': mode, 'id': new_id})
+        return jsonify({'status': 'error'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/explain', methods=['POST'])
+def explain_snippet():
+    try:
+        data = request.json or {}
+        code = data.get('code', '')
+        language = data.get('language', 'auto')
+        if not code.strip():
+            return jsonify({'status': 'error', 'message': 'empty code'}), 400
+        ai_text = _call_deepseek(code, language)
+        if ai_text:
+            return jsonify({'status': 'success', 'explanation': ai_text, 'provider': 'deepseek'})
+
+        explanation = _summarize_code(code, language)
+        return jsonify({'status': 'success', 'explanation': explanation, 'provider': 'local'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/snippets', methods=['GET'])
 def get_snippets():
-    return jsonify(db.get_all_grouped())
+    keyword = request.args.get('q')
+    return jsonify(db.get_all_grouped(keyword))
 
 @app.route('/api/snippets/<int:id>', methods=['DELETE'])
 def delete_snippet(id):

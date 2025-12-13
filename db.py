@@ -38,26 +38,39 @@ def save_snippet_v2(project_name, title, code, language, style_config=None):
     conn = get_connection()
     c = conn.cursor()
     try:
-        # 1. 查找或创建项目
-        c.execute('SELECT id FROM projects WHERE name = ?', (project_name,))
-        row = c.fetchone()
-        if row:
-            project_id = row[0]
-        else:
-            c.execute('INSERT INTO projects (name) VALUES (?)', (project_name,))
-            project_id = c.lastrowid
-            
-        # 2. 插入代码
+        project_id = _ensure_project(c, project_name)
+
         config_str = json.dumps(style_config) if style_config else "{}"
         c.execute('''
-            INSERT INTO snippets (project_id, title, code, language, style_config) 
+            INSERT INTO snippets (project_id, title, code, language, style_config)
             VALUES (?, ?, ?, ?, ?)
         ''', (project_id, title, code, language, config_str))
         conn.commit()
-        return True
+        return True, c.lastrowid
     except Exception as e:
         print(f"❌ DB Error: {e}")
-        return False
+        return False, None
+    finally:
+        conn.close()
+
+
+def update_snippet(snippet_id, project_name, title, code, language, style_config=None):
+    """Update an existing snippet and re-link the project if needed."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        project_id = _ensure_project(c, project_name)
+        config_str = json.dumps(style_config) if style_config else "{}"
+        c.execute('''
+            UPDATE snippets
+            SET project_id = ?, title = ?, code = ?, language = ?, style_config = ?
+            WHERE id = ?
+        ''', (project_id, title, code, language, config_str, snippet_id))
+        conn.commit()
+        return c.rowcount > 0, snippet_id
+    except Exception as e:
+        print(f"❌ DB Error: {e}")
+        return False, None
     finally:
         conn.close()
 
@@ -92,20 +105,32 @@ def delete_project(project_name):
     finally:
         conn.close()
 
-def get_all_grouped():
+def get_all_grouped(keyword=None):
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # 联表查询
-    c.execute('''
+
+    keyword = keyword.strip() if keyword else None
+
+    base_sql = '''
         SELECT s.id, s.title, s.code, s.language, s.created_at, p.name as project_name
         FROM snippets s
         JOIN projects p ON s.project_id = p.id
-        ORDER BY p.created_at DESC, s.created_at DESC
-    ''')
+    '''
+    where_clause = ''
+    params = []
+    if keyword:
+        like = f"%{keyword.lower()}%"
+        where_clause = 'WHERE LOWER(p.name) LIKE ? OR LOWER(s.title) LIKE ? OR LOWER(s.code) LIKE ?'
+        params = [like, like, like]
+
+    order_clause = 'ORDER BY p.created_at DESC, s.created_at DESC'
+    query = ' '.join([base_sql, where_clause, order_clause])
+
+    c.execute(query, params)
     rows = c.fetchall()
     conn.close()
-    
+
     result = {}
     for row in rows:
         item = dict(row)
@@ -114,5 +139,14 @@ def get_all_grouped():
             result[p_name] = []
         result[p_name].append(item)
     return result
+
+
+def _ensure_project(cursor, project_name):
+    cursor.execute('SELECT id FROM projects WHERE name = ?', (project_name,))
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+    cursor.execute('INSERT INTO projects (name) VALUES (?)', (project_name,))
+    return cursor.lastrowid
 
 init_db()
