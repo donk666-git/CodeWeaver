@@ -234,6 +234,10 @@ async function explainCurrentCode() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, language })
         });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || `HTTP ${res.status}`);
+        }
         const payload = await res.json();
         if (payload.status === 'success') {
             lastExplainText = payload.explanation || '';
@@ -458,11 +462,11 @@ function generateHighlightHtml(code, lang, theme) {
     // 根据用户选择的主题决定使用哪套语法颜色
     const currentSyntax = (theme === 'dark') ? syntaxThemes.dark : syntaxThemes.light;
 
-    // --- 2. 主题参数 (背景 + 文字颜色) ---
+    // --- 2. 主题参数 (背景 + 文字颜色，统一灰白基调) ---
     const themeMeta = {
-        gray: { bg: '#f6f8fb', text: '#1f2933', border: '#d0d7de', shadow: '0 2px 8px rgba(17,24,39,0.08)', syntax: 'light' },
-        green: { bg: '#eef5f0', text: '#1f2a33', border: '#c8d5c1', shadow: '0 2px 8px rgba(15,118,110,0.08)', syntax: 'light' },
-        dark: { bg: '#0d1117', text: '#c9d1d9', border: '#1f2937', shadow: '0 4px 12px rgba(0,0,0,0.45)', syntax: 'dark' }
+        gray: { bg: '#f6f8fa', text: '#1f2933', border: '#d0d7de', shadow: '0 2px 8px rgba(17,24,39,0.08)', syntax: 'light' },
+        green: { bg: '#f4f8f3', text: '#1f2a33', border: '#d6e4d1', shadow: '0 2px 8px rgba(15,118,110,0.08)', syntax: 'light' },
+        dark: { bg: '#f3f4f6', text: '#111827', border: '#d1d5db', shadow: '0 3px 10px rgba(0,0,0,0.10)', syntax: 'light' }
     };
     const chosen = themeMeta[theme] || themeMeta.gray;
 
@@ -495,13 +499,16 @@ function generateHighlightHtml(code, lang, theme) {
         `box-shadow:${chosen.shadow};`,
         "font-family:'Courier New', monospace;",
         'font-size:10pt;',
-        'line-height:1.55;',
-        'white-space:pre;',
+        'line-height:1.5;',
+        'white-space:pre-wrap;',
+        'word-break:break-word;',
         'tab-size:4;',
+        'width:100%;',
+        'box-sizing:border-box;',
         `color:${chosen.text};`
     ].join(' ');
 
-    return `<pre style="${preStyle}">${highlighted}</pre>`;
+    return `<div style="width:100%;"><pre style="${preStyle}">${highlighted}</pre></div>`;
 }
 // 【关键修复：智能吸取模式】
 async function getFromSelection() {

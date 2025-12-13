@@ -10,7 +10,7 @@ DEEPSEEK_API_KEY = os.getenv(
     # 默认密钥（如需更安全的部署，请改用环境变量覆盖）
     "sk-gmlivjrmuzlzswitszxghneregqnamhonjoqovnlwruwdvaz"
 )
-DEEPSEEK_ENDPOINT = os.getenv("DEEPSEEK_ENDPOINT", "https://api.deepseek.com/chat/completions")
+DEEPSEEK_ENDPOINT = os.getenv("DEEPSEEK_ENDPOINT", "https://api.deepseek.com/v1/chat/completions")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 app = Flask(__name__)
