@@ -490,6 +490,18 @@ function generateHighlightHtml(code, lang, theme) {
         highlighted = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    // 处理缩进与换行：把每行的前导空格 / 制表符变成 &nbsp;，并显式用 <br> 断行，避免 Word 插入时丢失缩进或最后一行掉出框外
+    const htmlLines = highlighted
+        .split(/\r?\n/)
+        .map(line => {
+            if (!line.length) return '&nbsp;';
+            return line.replace(/^([\t ]+)/, (m) => m
+                .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;')
+                .replace(/ /g, '&nbsp;')
+            );
+        })
+        .join('<br/>');
+
     const preStyle = [
         'margin:0;',
         'padding:12px 14px;',
@@ -508,7 +520,7 @@ function generateHighlightHtml(code, lang, theme) {
         `color:${chosen.text};`
     ].join(' ');
 
-    return `<div style="width:100%;"><pre style="${preStyle}">${highlighted}</pre></div>`;
+    return `<div style="width:100%;"><pre style="${preStyle}">${htmlLines}</pre></div>`;
 }
 // 【关键修复：智能吸取模式】
 async function getFromSelection() {
