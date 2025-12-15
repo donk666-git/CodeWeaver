@@ -1,13 +1,29 @@
+<<<<<<< HEAD
 /* static/js/taskpane.js v4.5 - 智能表格全选吸取 */
+=======
+/* static/js/taskpane.js v4.7 - 智能表格全选吸取 */
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 
 // 全局变量
 let deleteTarget = null; 
 let confirmModal = null;
+<<<<<<< HEAD
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
         $(document).ready(function () {
             console.log("✅ CodeWeaver v4.5 Ready");
+=======
+let currentEditingId = null;
+let searchTimer = null;
+let hljsConfigured = false;
+let listingCounter = 1;
+
+Office.onReady((info) => {
+    if (info.host === Office.HostType.Word) {
+            $(document).ready(function () {
+                console.log("✅ CodeWeaver v4.6 Ready");
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
             
             // 1. 初始化
             syncProjectName();
@@ -18,6 +34,8 @@ Office.onReady((info) => {
             $('#btnSave').click(saveSnippet);
             $('#btnInsert').click(insertHighlight);
             $('#btnGetSelection').click(getFromSelection);
+            $('#btnNormalize').click(applyIndentationNormalization);
+            $('#btnExplain').click(requestExplanation);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(loadSnippets);
@@ -69,6 +87,97 @@ function showStatus(msg, type='info') {
     setTimeout(() => $('#statusMsg').empty(), 3000);
 }
 
+<<<<<<< HEAD
+=======
+function normalizeIndentationText(raw, language = '') {
+    if (!raw) return '';
+    const tabSize = 4;
+    let text = raw.replace(/\t/g, ' '.repeat(tabSize));
+    let lines = text.split(/\r?\n/);
+
+    while (lines.length && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+    }
+    while (lines.length && lines[0].trim() === '') {
+        lines.shift();
+    }
+
+    let minIndent = null;
+    lines.forEach(line => {
+        if (!line.trim()) return;
+        const match = line.match(/^(\s+)/);
+        const indentLen = match ? match[1].length : 0;
+        if (minIndent === null || indentLen < minIndent) minIndent = indentLen;
+    });
+
+    if (minIndent && minIndent > 0) {
+        lines = lines.map(line => {
+            if (!line.trim()) return '';
+            return line.startsWith(' '.repeat(minIndent)) ? line.slice(minIndent) : line.replace(/^\s+/, '');
+        });
+    }
+
+    lines = lines.map(line => line.replace(/\s+$/, ''));
+    return lines.join('\n');
+}
+
+function applyIndentationNormalization() {
+    const code = $('#codeSource').val();
+    if (!code) return showStatus("⚠️ 当前无代码", "error");
+    const lang = $('#langSelect').val();
+    const normalized = normalizeIndentationText(code, lang);
+    $('#codeSource').val(normalized);
+    showStatus("✅ 缩进已整理");
+}
+
+function ensureHighlighter() {
+    if (typeof hljs === 'undefined') return;
+    if (!hljsConfigured) {
+        hljs.configure({ ignoreUnescapedHTML: true });
+        hljsConfigured = true;
+    }
+}
+
+function buildLanguageDropdown() {
+    if (typeof hljs === 'undefined') return;
+    const common = ['python', 'java', 'c', 'cpp', 'javascript', 'typescript', 'html', 'css', 'sql', 'bash', 'json', 'go', 'php', 'ruby', 'csharp', 'swift', 'kotlin', 'rust'];
+    const rest = hljs.listLanguages ? hljs.listLanguages().slice() : [];
+    const remaining = rest.filter(l => !common.includes(l)).sort();
+    const merged = ['auto', 'label_common', ...common, 'label_rest', ...remaining];
+
+    const $select = $('#langSelect');
+    $select.empty();
+
+    merged.forEach(lang => {
+        if (lang === 'label_common') {
+            $select.append('<option disabled>常用</option>');
+            return;
+        }
+        if (lang === 'label_rest') {
+            $select.append('<option disabled>A–Z</option>');
+            return;
+        }
+        let label = lang;
+        if (lang === 'auto') label = '✨ 自动检测';
+        else {
+            const map = { cpp: 'C++', c: 'C', csharp: 'C#', javascript: 'JavaScript', typescript: 'TypeScript', sql: 'SQL', html: 'HTML', css: 'CSS', json: 'JSON', php: 'PHP', go: 'Go', ruby: 'Ruby', bash: 'Bash', kotlin: 'Kotlin', swift: 'Swift', rust: 'Rust', python: 'Python', java: 'Java' };
+            label = map[lang] || lang.charAt(0).toUpperCase() + lang.slice(1);
+        }
+        $select.append(`<option value="${lang}">${label}</option>`);
+    });
+    $select.val('auto');
+}
+
+function updateEditingState(title, project) {
+    $('#editState').html(`✏️ 正在编辑：<strong>${title}</strong> <span class="text-muted">@ ${project}</span>`);
+}
+
+function clearEditingState() {
+    currentEditingId = null;
+    $('#editState').empty();
+}
+
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 function syncProjectName() {
     try {
         const url = Office.context.document.url;
@@ -106,7 +215,35 @@ async function saveSnippet() {
     } catch (e) { showStatus("❌ 错误", "error"); }
 }
 
+<<<<<<< HEAD
 async function loadSnippets() {
+=======
+async function requestExplanation() {
+    const code = $('#codeSource').val();
+    if (!code) return showStatus("⚠️ 当前无代码", "error");
+    const lang = $('#langSelect').val();
+
+    $('#aiExplainResult').text('⏳ AI 解读中...');
+    try {
+        const res = await fetch('/api/explain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, language: lang })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            $('#aiExplainResult').text(data.explanation || '暂无解释');
+        } else {
+            $('#aiExplainResult').text(data.message || '解释失败');
+        }
+    } catch (e) {
+        console.error(e);
+        $('#aiExplainResult').text('网络异常');
+    }
+}
+
+async function loadSnippets(keyword = '') {
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
     try {
         const res = await fetch('/api/snippets?t=' + Date.now());
         const grouped = await res.json();
@@ -201,15 +338,16 @@ async function performDelete() {
 async function insertHighlight() {
     const code = $('#codeSource').val();
     const lang = $('#langSelect').val();
-    const theme = $('#themeSelect').val(); 
+    const theme = $('#themeSelect').val();
 
     if (!code) return showStatus("❌ 代码为空", "error");
     try {
-        const html = generateHighlightHtml(code, lang, theme)
+        const html = generateHighlightHtml(code, lang, theme, listingCounter)
         await Word.run(async (ctx)=>{
             ctx.document.getSelection().insertHtml(html, 'Replace');
             await ctx.sync();
         });
+        listingCounter += 1;
         showStatus("✅ 成功插入");
     } catch (e) {
         console.error(e);
@@ -224,8 +362,9 @@ async function insertHighlight() {
 /**
  * 本地生成高亮 HTML (终极版：修复行距 + 内联颜色样式)
  */
-function generateHighlightHtml(code, lang, theme) {
-    if (!code) return '';
+function generateHighlightHtml(code, lang, theme, listingNo) {
+    const normalizedCode = normalizeIndentationText(code, lang);
+    if (!normalizedCode) return '';
 
     // --- 1. 定义语法高亮颜色方案 (内联样式映射) ---
     // 分为 'light' (用于 gray/green 主题) 和 'dark' (用于 dark 主题)
@@ -280,7 +419,34 @@ function generateHighlightHtml(code, lang, theme) {
     const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
 
+<<<<<<< HEAD
     // --- 3. 生成 HTML ---
+=======
+    ensureHighlighter();
+
+    let highlightedBlock = '';
+    try {
+        if (typeof hljs !== 'undefined' && hljs.highlight) {
+            const hasLanguage = lang && lang !== 'auto' && hljs.getLanguage && hljs.getLanguage(lang);
+            const res = hasLanguage
+                ? hljs.highlight(normalizedCode, { language: lang, ignoreIllegals: true })
+                : hljs.highlightAuto(normalizedCode);
+            highlightedBlock = res.value || '';
+        }
+    } catch(e) { console.warn('highlight error', e); }
+
+    if (!highlightedBlock) highlightedBlock = escapeHtml(normalizedCode);
+
+    highlightedBlock = highlightedBlock.replace(/<span class="hljs-([^"]+)">/g, (match, cls) => {
+        const key = cls.split(' ')[0];
+        const style = currentSyntax[key] || '';
+        return style ? `<span style="${style}">` : '<span>';
+    });
+
+    let lines = highlightedBlock.split(/\r?\n/);
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
     let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
 
     const lines = code.split(/\r?\n/);
@@ -322,6 +488,8 @@ function generateHighlightHtml(code, lang, theme) {
     });
 
     html += "</table>";
+    const captionText = listingNo ? `Listing ${listingNo}:` : 'Listing:';
+    html += `<div style="text-align:center; font-family:'Times New Roman'; font-size:10.5pt; margin-top:4px;">${captionText}</div>`;
     return html;
 }
 // 【关键修复：智能吸取模式】
@@ -374,7 +542,7 @@ async function getFromSelection() {
             }
 
             if (htmlSuccess) {
-                $('#codeSource').val(extractedHtmlCode.join('\n'));
+                $('#codeSource').val(normalizeIndentationText(extractedHtmlCode.join('\n')));
                 return showStatus("✅ 已从表格吸取");
             }
 
@@ -390,7 +558,7 @@ async function getFromSelection() {
                     return line.replace(/^\s*\d+\s*/, '');
                 });
                 
-                $('#codeSource').val(cleanedLines.join('\n'));
+                $('#codeSource').val(normalizeIndentationText(cleanedLines.join('\n')));
                 showStatus("✅ 已吸取 (文本模式)");
             } else {
                 showStatus("⚠️ 未选中内容", "error");
