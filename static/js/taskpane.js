@@ -18,6 +18,7 @@ Office.onReady((info) => {
             buildLanguageDropdown();
             ensureHighlighter();
             loadSnippets();
+            renumberListings();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
             // 2. 绑定静态按钮
@@ -105,23 +106,145 @@ function normalizeIndentationText(raw, language = '') {
         lines.shift();
     }
 
-    let minIndent = null;
+    lines = expandMultiStatements(lines, language);
+
+    const indentUnit = detectIndentUnit(lines);
+    let depth = 0;
+    const normalized = [];
+
     lines.forEach(line => {
-        if (!line.trim()) return;
-        const match = line.match(/^(\s+)/);
-        const indentLen = match ? match[1].length : 0;
-        if (minIndent === null || indentLen < minIndent) minIndent = indentLen;
+        const trimmedRight = line.replace(/\s+$/, '');
+        const content = trimmedRight.trim();
+        if (!content) {
+            normalized.push('');
+            return;
+        }
+
+        const adjust = calculateIndentAdjust(content, language);
+        const baseDepth = Math.max(depth - adjust.decreaseBefore, 0);
+        const rebuilt = ' '.repeat(baseDepth * indentUnit) + content;
+        normalized.push(rebuilt);
+        depth = Math.max(baseDepth + adjust.increaseAfter, 0);
     });
 
-    if (minIndent && minIndent > 0) {
-        lines = lines.map(line => {
-            if (!line.trim()) return '';
-            return line.startsWith(' '.repeat(minIndent)) ? line.slice(minIndent) : line.replace(/^\s+/, '');
-        });
+    return normalized.join('\n');
+}
+
+function detectIndentUnit(lines) {
+    const counts = [];
+    lines.forEach(line => {
+        const match = line.match(/^(\s+)/);
+        if (match) counts.push(match[1].length);
+    });
+    const normalized = counts
+        .filter(n => n > 0)
+        .map(n => (n % 4 === 0 ? 4 : n % 2 === 0 ? 2 : n));
+    if (normalized.length === 0) return 4;
+    const freq = normalized.reduce((acc, n) => { acc[n] = (acc[n] || 0) + 1; return acc; }, {});
+    let best = 4, bestCount = 0;
+    Object.entries(freq).forEach(([unit, cnt]) => {
+        if (cnt > bestCount) { bestCount = cnt; best = parseInt(unit, 10); }
+    });
+    return best || 4;
+}
+
+function expandMultiStatements(lines, language) {
+    const targetLangs = ['javascript', 'js', 'typescript', 'ts', 'java', 'c', 'cpp', 'csharp'];
+    const applicable = targetLangs.includes((language || '').toLowerCase());
+    if (!applicable) return lines;
+
+    const splitSafe = (line) => {
+        const segments = [];
+        let buf = '';
+        let inStr = false;
+        let strChar = '';
+        let parenDepth = 0;
+        const pushBuf = () => {
+            const val = buf.trim();
+            if (val) segments.push(val);
+            buf = '';
+        };
+
+        const trimmed = line.trim();
+        if (/^for\s*\([^)]*;[^)]*;[^)]*\)/i.test(trimmed)) return [line];
+
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            const prev = i > 0 ? line[i - 1] : '';
+            if (inStr) {
+                buf += ch;
+                if (ch === strChar && prev !== '\\') {
+                    inStr = false;
+                    strChar = '';
+                }
+                continue;
+            }
+            if (ch === '"' || ch === '\'' || ch === '`') {
+                inStr = true; strChar = ch; buf += ch; continue;
+            }
+            if (ch === '(') parenDepth += 1;
+            if (ch === ')' && parenDepth > 0) parenDepth -= 1;
+            if (ch === ';' && parenDepth === 0) {
+                pushBuf();
+                continue;
+            }
+            buf += ch;
+        }
+        pushBuf();
+        return segments.length ? segments : [line.trimEnd()];
+    };
+
+    return lines.flatMap(splitSafe);
+}
+
+function calculateIndentAdjust(content, language) {
+    let decreaseBefore = 0;
+    let increaseAfter = 0;
+    const lang = (language || '').toLowerCase();
+
+    if (/^[}\]\)]/.test(content)) {
+        const closing = content.match(/^[}\]\)]+/);
+        decreaseBefore = closing ? closing[0].length : 0;
     }
 
-    lines = lines.map(line => line.replace(/\s+$/, ''));
-    return lines.join('\n');
+    if (lang.startsWith('python')) {
+        if (/^(elif|else|except|finally)\b/.test(content)) {
+            decreaseBefore = Math.max(decreaseBefore, 1);
+        }
+        if (/[^#]:\s*$/.test(content)) {
+            increaseAfter += 1;
+        }
+    } else {
+        const tokens = countBraceChanges(content);
+        decreaseBefore = Math.max(decreaseBefore, tokens.close);
+        const net = tokens.open - tokens.close;
+        if (net > 0) increaseAfter += net;
+        if (/\belse\b|\bcatch\b|\bfinally\b/.test(content) && !/\{/.test(content)) {
+            // keep else aligned with its block if braces are implicit
+            decreaseBefore = Math.max(decreaseBefore, 1);
+            increaseAfter += 1;
+        }
+    }
+
+    return { decreaseBefore, increaseAfter };
+}
+
+function countBraceChanges(content) {
+    let open = 0, close = 0;
+    let inStr = false;
+    let strChar = '';
+    for (let i = 0; i < content.length; i++) {
+        const ch = content[i];
+        const prev = i > 0 ? content[i - 1] : '';
+        if (inStr) {
+            if (ch === strChar && prev !== '\\') { inStr = false; strChar = ''; }
+            continue;
+        }
+        if (ch === '"' || ch === '\'' || ch === '`') { inStr = true; strChar = ch; continue; }
+        if (ch === '{') open += 1;
+        else if (ch === '}') close += 1;
+    }
+    return { open, close };
 }
 
 function applyIndentationNormalization() {
@@ -353,12 +476,14 @@ async function insertHighlight() {
 
     if (!code) return showStatus("❌ 代码为空", "error");
     try {
-        const html = generateHighlightHtml(code, lang, theme, listingCounter)
+        const renumberedNext = await renumberListings();
+        const html = generateHighlightHtml(code, lang, theme, renumberedNext || null);
         await Word.run(async (ctx)=>{
             ctx.document.getSelection().insertHtml(html, 'Replace');
             await ctx.sync();
         });
-        listingCounter += 1;
+        const recalculated = await renumberListings();
+        if (recalculated !== null) listingCounter = recalculated;
         showStatus("✅ 成功插入");
     } catch (e) {
         console.error(e);
@@ -426,6 +551,9 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
     const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
+    const offset_px = 34;
+    const table_width = `calc(100% + ${offset_px}px)`;
+    const table_margin_left = `-${offset_px}px`;
 
     ensureHighlighter();
 
@@ -451,7 +579,7 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     let lines = highlightedBlock.split(/\r?\n/);
     while (lines.length && lines[lines.length - 1] === '') lines.pop();
 
-    let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
+    let html = `<table style="width:${table_width}; border-collapse:collapse; border-spacing:0; margin-bottom:10px; margin-left:${table_margin_left}; background-color:#fff;">`;
     lines.forEach((line, i) => {
         const lineHtml = line === '' ? '&nbsp;' : line;
 
@@ -463,9 +591,37 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     });
 
     html += "</table>";
-    const captionText = listingNo ? `Listing ${listingNo}:` : 'Listing:';
+    const captionText = listingNo ? `Listing ${listingNo}: ` : 'Listing: ';
     html += `<div style="text-align:center; font-family:'Times New Roman'; font-size:10.5pt; margin-top:4px;">${captionText}</div>`;
     return html;
+}
+
+async function renumberListings() {
+    let next = null;
+    try {
+        await Word.run(async (ctx) => {
+            const results = ctx.document.body.search('Listing', { matchCase: false });
+            results.load('items');
+            await ctx.sync();
+            results.items.forEach(r => r.load('text'));
+            await ctx.sync();
+
+            let counter = 1;
+            results.items.forEach(range => {
+                const raw = (range.text || '').replace(/\s+/g, ' ').trim();
+                if (/^Listing\s*(\d+)?\s*:\s*$/i.test(raw) || /^Listing:\s*$/i.test(raw)) {
+                    range.insertText(`Listing ${counter}: `, 'Replace');
+                    counter += 1;
+                }
+            });
+            await ctx.sync();
+            next = counter;
+        });
+    } catch (e) {
+        console.warn('renumber listings failed', e);
+    }
+    if (next !== null) listingCounter = next;
+    return next;
 }
 // 【关键修复：智能吸取模式】
 async function getFromSelection() {
