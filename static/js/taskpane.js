@@ -1,5 +1,9 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 /* static/js/taskpane.js v4.5 - 智能表格全选吸取 */
+=======
+/* static/js/taskpane.js v4.7 - 智能表格全选吸取 */
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 =======
 /* static/js/taskpane.js v4.7 - 智能表格全选吸取 */
 >>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
@@ -8,11 +12,23 @@
 let deleteTarget = null; 
 let confirmModal = null;
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
         $(document).ready(function () {
             console.log("✅ CodeWeaver v4.5 Ready");
+=======
+let currentEditingId = null;
+let searchTimer = null;
+let hljsConfigured = false;
+let listingCounter = 1;
+
+Office.onReady((info) => {
+    if (info.host === Office.HostType.Word) {
+            $(document).ready(function () {
+                console.log("✅ CodeWeaver v4.6 Ready");
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 =======
 let currentEditingId = null;
 let searchTimer = null;
@@ -88,7 +104,10 @@ function showStatus(msg, type='info') {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 function normalizeIndentationText(raw, language = '') {
     if (!raw) return '';
     const tabSize = 4;
@@ -216,14 +235,39 @@ async function saveSnippet() {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 async function loadSnippets() {
 =======
+=======
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 async function requestExplanation() {
     const code = $('#codeSource').val();
     if (!code) return showStatus("⚠️ 当前无代码", "error");
     const lang = $('#langSelect').val();
 
     $('#aiExplainResult').text('⏳ AI 解读中...');
+<<<<<<< HEAD
+=======
+    try {
+        const res = await fetch('/api/explain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, language: lang })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            $('#aiExplainResult').text(data.explanation || '暂无解释');
+        } else {
+            $('#aiExplainResult').text(data.message || '解释失败');
+        }
+    } catch (e) {
+        console.error(e);
+        $('#aiExplainResult').text('网络异常');
+    }
+}
+
+async function loadSnippets(keyword = '') {
+>>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
     try {
         const res = await fetch('/api/explain', {
             method: 'POST',
