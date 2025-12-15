@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CodeWeaver Pro</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('highlight_assets', filename='styles/default.min.css') }}">
+    <script src="{{ url_for('highlight_assets', filename='highlight.min.js') }}" onerror="this.src='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js'"></script>
     <style>pre, code { font-family: 'Courier New', monospace; }</style>
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -14,57 +14,86 @@
 
     <link href="/static/css/style.css?v=4.0" rel="stylesheet">
 </head>
-<body class="p-3">
+<body class="cw-body">
 
-    <ul class="nav nav-tabs mb-3">
-        <li class="nav-item"><button class="nav-link active" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor">🖊️ 编辑器</button></li>
-        <li class="nav-item"><button class="nav-link" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" id="btnRefreshTab">📚 项目库</button></li>
-    </ul>
-
-    <div class="tab-content">
-        <div class="tab-pane fade show active" id="editor">
-            <div class="row g-2 mb-2">
-                <div class="col-6"><input type="text" id="inputProject" class="form-control form-control-sm" placeholder="📂 项目名"></div>
-                <div class="col-6"><input type="text" id="inputTitle" class="form-control form-control-sm" placeholder="📝 标题"></div>
+    <div class="cw-shell shadow-sm">
+        <div class="cw-header d-flex align-items-center justify-content-between mb-2">
+            <div>
+                <div class="fw-bold">CodeWeaver 代码助手</div>
+                <div class="small text-muted">更清爽的编辑体验 · 深度 AI 讲解</div>
             </div>
-            <div class="mb-2">
-                <select id="langSelect" class="form-select form-select-sm">
-                <option value="auto">✨ 自动检测</option>
-                <option value="python">Python</option>
-                <option value="c">C / C++</option>
-                <option value="java">Java</option>
-                <option value="html">HTML / XML</option>
-                <option value="javascript">JavaScript</option>
-                <option value="json">JSON</option> 
-                <option value="bash">Bash / Shell</option> 
-                <option value="sql">SQL</option>
-                <option value="matlab">MATLAB</option>
-            </select>
-            </div>
-            <div class="mb-2">
-    <select id="themeSelect" class="form-select form-select-sm">
-        <option value="gray">🎨 经典灰框 (独立行号)</option>
-        <option value="dark">🌑 极客全黑 (VS风格)</option>
-        <option value="green">🍃 护眼绿底 (作者风格)</option>
-    </select>
-</div>
-            <div class="mb-3 position-relative">
-                <textarea id="codeSource" class="form-control" rows="12" placeholder="// 代码..."></textarea>
-                <button type="button" class="btn btn-sm btn-light border position-absolute bottom-0 end-0 m-2" id="btnGetSelection">📥 吸取</button>
-            </div>
-            <div class="d-grid gap-2">
-                <button type="button" class="btn btn-primary" id="btnInsert">⚡ 插入高亮</button>
-                <button type="button" class="btn btn-success" id="btnSave">💾 保存</button>
-            </div>
-            <div id="statusMsg" class="mt-2 text-center small text-muted" style="height:20px;"></div>
+            <div class="badge bg-gradient-blue">Word Add-in</div>
         </div>
 
-        <div class="tab-pane fade" id="library">
-            <div class="d-flex justify-content-between mb-2">
-                <input type="text" id="searchBox" class="form-control form-control-sm me-2" placeholder="搜索...">
-                <button class="btn btn-sm btn-outline-primary" id="btnRefresh">🔄</button>
+        <ul class="nav nav-tabs mb-3 cw-tabs">
+            <li class="nav-item"><button class="nav-link active" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor">🖊️ 编辑器</button></li>
+            <li class="nav-item"><button class="nav-link" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" id="btnRefreshTab">📚 项目库</button></li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="editor">
+                <div class="cw-card p-3 mb-3">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><input type="text" id="inputProject" class="form-control form-control-sm cw-input" placeholder="📂 项目名"></div>
+                        <div class="col-6"><input type="text" id="inputTitle" class="form-control form-control-sm cw-input" placeholder="📝 标题"></div>
+                    </div>
+                    <div class="row g-2 mb-2 align-items-center">
+                        <div class="col-7">
+                            <label class="cw-label">语言</label>
+                            <select id="langSelect" class="form-select form-select-sm cw-select"></select>
+                        </div>
+                        <div class="col-5">
+                            <label class="cw-label">配色</label>
+                            <select id="themeSelect" class="form-select form-select-sm cw-select">
+                                <option value="gray">🎨 经典灰</option>
+                                <option value="dark">🌑 极客全黑</option>
+                                <option value="green">🍃 护眼绿</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3 position-relative">
+                        <div class="cw-codebar d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">等宽 10pt · 无行号 · 更贴合 Word</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnGetSelection">📥 吸取</button>
+                        </div>
+                        <textarea id="codeSource" class="form-control cw-textarea" rows="12" placeholder="// 在此粘贴代码，或点击“吸取”从 Word 获取"></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6 d-grid gap-2">
+                            <button type="button" class="btn btn-primary cw-btn" id="btnInsert">⚡ 插入高亮</button>
+                            <button type="button" class="btn btn-success cw-btn" id="btnSave">💾 保存/更新</button>
+                        </div>
+                        <div class="col-6 d-grid gap-2">
+                            <button type="button" class="btn btn-warning cw-btn" id="btnExplain">🤖 讲解代码</button>
+                            <button type="button" class="btn btn-outline-secondary cw-btn" id="btnNew">🆕 新建</button>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mt-3 cw-status-bar">
+                        <div id="statusMsg" class="small text-muted flex-grow-1"></div>
+                        <div class="small text-muted ms-2" id="aiProviderHint"></div>
+                    </div>
+                </div>
+
+                <div class="cw-ai-tip p-3">
+                    <div class="d-flex align-items-start">
+                        <div class="me-2">🤝</div>
+                        <div>
+                            <div class="fw-semibold">DeepSeek 智能讲解</div>
+                            <div class="small text-muted">自动梳理逻辑、罗列要点、提示风险。生成失败会回落到本地快速摘要。</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="gistContainer"></div>
+
+            <div class="tab-pane fade" id="library">
+                <div class="cw-card p-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <input type="text" id="searchBox" class="form-control form-control-sm cw-input me-2" placeholder="搜索标题 / 代码 / 项目...">
+                        <button class="btn btn-sm btn-outline-primary" id="btnRefresh">🔄</button>
+                    </div>
+                    <div id="gistContainer"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -78,6 +107,27 @@
                 <div class="modal-footer py-1">
                     <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">取消</button>
                     <button type="button" class="btn btn-sm btn-danger" id="btnConfirmDelete">删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="explainModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2 align-items-center">
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0">🤖 代码讲解</h6>
+                        <div class="small text-muted" id="aiExplainMeta">DeepSeek 优先 · 支持自动降级</div>
+                    </div>
+                    <span class="badge bg-gradient-blue" id="aiProviderBadge">准备中</span>
+                </div>
+                <div class="modal-body bg-light" style="max-height:60vh; overflow:auto;">
+                    <pre id="explainContent" class="mb-0" style="white-space:pre-wrap; font-family: 'Courier New', monospace; font-size: 10pt; border:none; background: transparent;"></pre>
+                </div>
+                <div class="modal-footer py-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyExplain">复制讲解</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">关闭</button>
                 </div>
             </div>
         </div>
