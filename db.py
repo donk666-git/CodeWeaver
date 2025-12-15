@@ -6,8 +6,10 @@ import json
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, 'code_weaver.db')
 
+
 def get_connection():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
+
 
 def init_db():
     conn = get_connection()
@@ -34,7 +36,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_snippet_v2(project_name, title, code, language, style_config=None):
+
+def save_snippet_v2(project_name, title, code, language, style_config=None, snippet_id=None):
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -46,13 +49,34 @@ def save_snippet_v2(project_name, title, code, language, style_config=None):
         else:
             c.execute('INSERT INTO projects (name) VALUES (?)', (project_name,))
             project_id = c.lastrowid
-            
-        # 2. 插入代码
+
         config_str = json.dumps(style_config) if style_config else "{}"
-        c.execute('''
-            INSERT INTO snippets (project_id, title, code, language, style_config) 
-            VALUES (?, ?, ?, ?, ?)
-        ''', (project_id, title, code, language, config_str))
+
+        if snippet_id:
+            c.execute('SELECT id FROM snippets WHERE id = ?', (snippet_id,))
+            exists_row = c.fetchone()
+            if exists_row:
+                c.execute('''
+                    UPDATE snippets
+                    SET project_id=?, title=?, code=?, language=?, style_config=?
+                    WHERE id=?
+                ''', (project_id, title, code, language, config_str, snippet_id))
+                conn.commit()
+                return True
+
+        c.execute('SELECT id FROM snippets WHERE project_id = ? AND title = ? LIMIT 1', (project_id, title))
+        exists = c.fetchone()
+        if exists:
+            c.execute('''
+                UPDATE snippets
+                SET code=?, language=?, style_config=?
+                WHERE id=?
+            ''', (code, language, config_str, exists[0]))
+        else:
+            c.execute('''
+                INSERT INTO snippets (project_id, title, code, language, style_config)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (project_id, title, code, language, config_str))
         conn.commit()
         return True
     except Exception as e:
@@ -61,12 +85,14 @@ def save_snippet_v2(project_name, title, code, language, style_config=None):
     finally:
         conn.close()
 
+
 def delete_snippet(snippet_id):
     conn = get_connection()
     c = conn.cursor()
     c.execute('DELETE FROM snippets WHERE id = ?', (snippet_id,))
     conn.commit()
     conn.close()
+
 
 # 【新增】删除项目 (连带删除下面的代码)
 def delete_project(project_name):
@@ -76,12 +102,13 @@ def delete_project(project_name):
         # 1. 先找 ID
         c.execute('SELECT id FROM projects WHERE name = ?', (project_name,))
         row = c.fetchone()
-        if not row: return False
+        if not row:
+            return False
         pid = row[0]
-        
+
         # 2. 删除该项目下的所有 snippet
         c.execute('DELETE FROM snippets WHERE project_id = ?', (pid,))
-        
+
         # 3. 删除项目本身
         c.execute('DELETE FROM projects WHERE id = ?', (pid,))
         conn.commit()
@@ -92,20 +119,27 @@ def delete_project(project_name):
     finally:
         conn.close()
 
-def get_all_grouped():
+
+def get_all_grouped(keyword=None):
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # 联表查询
-    c.execute('''
+    query = '''
         SELECT s.id, s.title, s.code, s.language, s.created_at, p.name as project_name
         FROM snippets s
         JOIN projects p ON s.project_id = p.id
-        ORDER BY p.created_at DESC, s.created_at DESC
-    ''')
+    '''
+    params = []
+    if keyword:
+        like = f"%{keyword}%"
+        query += " WHERE s.title LIKE ? OR s.code LIKE ? OR p.name LIKE ?"
+        params.extend([like, like, like])
+
+    query += ' ORDER BY p.created_at DESC, s.created_at DESC'
+    c.execute(query, params)
     rows = c.fetchall()
     conn.close()
-    
+
     result = {}
     for row in rows:
         item = dict(row)
@@ -114,5 +148,6 @@ def get_all_grouped():
             result[p_name] = []
         result[p_name].append(item)
     return result
+
 
 init_db()
