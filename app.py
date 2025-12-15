@@ -67,7 +67,7 @@ def explain_code():
 
         api_key = os.environ.get('DEEPSEEK_API_KEY')
         if not api_key:
-            return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.DEEPSEEK_API_KEY)'}), 400
+            return jsonify({'status': 'error', 'message': '未配置 API Key，请设置环境变量 DEEPSEEK_API_KEY'}), 200
 
         prompt = f"请用中文解释这段{language or '代码'}，突出核心逻辑：\n```\n{code}\n```"
         payload = {

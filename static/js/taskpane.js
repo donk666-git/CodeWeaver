@@ -7,6 +7,7 @@ let currentEditingId = null;
 let searchTimer = null;
 let hljsConfigured = false;
 let listingCounter = 1;
+let renumberTimer = null;
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -24,8 +25,16 @@ Office.onReady((info) => {
             $('#btnSave').click(saveSnippet);
             $('#btnInsert').click(insertHighlight);
             $('#btnGetSelection').click(getFromSelection);
-            $('#btnNormalize').click(applyIndentationNormalization);
             $('#btnExplain').click(requestExplanation);
+
+            if (Office.context && Office.context.document) {
+                Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
+                    if (renumberTimer) clearTimeout(renumberTimer);
+                    renumberTimer = setTimeout(() => renumberListings(true), 600);
+                });
+            }
+
+            renumberListings(true);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
@@ -178,6 +187,37 @@ function updateEditingState(title, project) {
 function clearEditingState() {
     currentEditingId = null;
     $('#editState').empty();
+}
+
+async function renumberListings(silent = false) {
+    try {
+        await Word.run(async (ctx) => {
+            const search = ctx.document.body.search('Listing', { matchCase: true, matchWildcards: false });
+            ctx.load(search, ['items']);
+            await ctx.sync();
+
+            let counter = 1;
+            search.items.forEach((range) => {
+                range.load('text');
+            });
+            await ctx.sync();
+
+            search.items.forEach((range) => {
+                const text = (range.text || '').trim();
+                if (!text.startsWith('Listing')) return;
+
+                const suffix = text.replace(/^Listing\s*\d*:\s*/i, '').trim();
+                const caption = suffix ? `Listing ${counter}: ${suffix}` : `Listing ${counter}: `;
+                range.insertText(caption, 'Replace');
+                counter += 1;
+            });
+
+            listingCounter = counter;
+        });
+        if (!silent) showStatus('✅ 标号已更新');
+    } catch (e) {
+        if (!silent) console.error(e);
+    }
 }
 
 function syncProjectName() {
@@ -353,12 +393,13 @@ async function insertHighlight() {
 
     if (!code) return showStatus("❌ 代码为空", "error");
     try {
+        await renumberListings(true);
         const html = generateHighlightHtml(code, lang, theme, listingCounter)
         await Word.run(async (ctx)=>{
             ctx.document.getSelection().insertHtml(html, 'Replace');
             await ctx.sync();
         });
-        listingCounter += 1;
+        await renumberListings(true);
         showStatus("✅ 成功插入");
     } catch (e) {
         console.error(e);
@@ -449,7 +490,27 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     });
 
     let lines = highlightedBlock.split(/\r?\n/);
-    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+    while (lines.length && (!lines[lines.length - 1] || lines[lines.length - 1].replace(/&nbsp;/g, '').trim() === '')) lines.pop();
+
+    let minLeading = null;
+    lines.forEach(line => {
+        const plain = line.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+        if (!plain.trim()) return;
+        const lead = plain.match(/^ */)[0].length;
+        if (minLeading === null || lead < minLeading) minLeading = lead;
+    });
+
+    if (minLeading && minLeading > 0) {
+        lines = lines.map(line => {
+            let updated = line;
+            let remain = minLeading;
+            while (remain > 0 && (updated.startsWith('&nbsp;') || updated.startsWith(' '))) {
+                updated = updated.startsWith('&nbsp;') ? updated.slice(6) : updated.slice(1);
+                remain -= 1;
+            }
+            return updated;
+        });
+    }
 
     let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
     lines.forEach((line, i) => {
@@ -463,7 +524,7 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     });
 
     html += "</table>";
-    const captionText = listingNo ? `Listing ${listingNo}:` : 'Listing:';
+    const captionText = listingNo ? `Listing ${listingNo}: ` : 'Listing: ';
     html += `<div style="text-align:center; font-family:'Times New Roman'; font-size:10.5pt; margin-top:4px;">${captionText}</div>`;
     return html;
 }

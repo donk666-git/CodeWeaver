@@ -19,7 +19,7 @@
     <div class="d-flex align-items-center mb-3 header-bar">
         <div>
             <div class="fw-bold text-dark">CodeWeaver Pro</div>
-            <div class="text-muted small">快速整理 · 精准插入 · 稳定高亮</div>
+            <div class="text-muted small">缩进规范 · 精准插入 · 稳定高亮</div>
         </div>
         <div class="ms-auto d-flex align-items-center gap-2">
             <span class="badge bg-primary-subtle text-primary fw-semibold px-2">Release</span>
@@ -55,14 +55,9 @@
                     <button type="button" class="btn btn-sm btn-light border position-absolute bottom-0 end-0 m-2" id="btnGetSelection">📥 吸取</button>
                 </div>
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div class="d-flex align-items-center flex-wrap gap-2">
-                        <div class="small text-muted" id="editState"></div>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" class="btn btn-outline-secondary" id="btnNormalize">🧹 整理缩进</button>
-                            <button type="button" class="btn btn-outline-info" id="btnExplain">🤖 AI 解读</button>
-                        </div>
-                    </div>
-                    <div class="d-grid gap-2 flex-grow-1 ms-2" style="max-width: 240px;">
+                    <div class="small text-muted" id="editState"></div>
+                    <div class="d-flex flex-wrap gap-2 ms-auto">
+                        <button type="button" class="btn btn-outline-info" id="btnExplain">🤖 AI 解读</button>
                         <button type="button" class="btn btn-primary" id="btnInsert">⚡ 插入高亮</button>
                         <button type="button" class="btn btn-success" id="btnSave">💾 保存</button>
                     </div>
