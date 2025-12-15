@@ -34,7 +34,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_snippet_v2(project_name, title, code, language, style_config=None):
+def save_snippet_v2(project_name, title, code, language, style_config=None, snippet_id=None):
     conn = get_connection()
     c = conn.cursor()
     try:
@@ -49,10 +49,31 @@ def save_snippet_v2(project_name, title, code, language, style_config=None):
             
         # 2. 插入代码
         config_str = json.dumps(style_config) if style_config else "{}"
-        c.execute('''
-            INSERT INTO snippets (project_id, title, code, language, style_config) 
-            VALUES (?, ?, ?, ?, ?)
-        ''', (project_id, title, code, language, config_str))
+        if snippet_id:
+            c.execute('SELECT id FROM snippets WHERE id = ?', (snippet_id,))
+            exists_row = c.fetchone()
+            if exists_row:
+                c.execute('''
+                    UPDATE snippets
+                    SET project_id=?, title=?, code=?, language=?, style_config=?
+                    WHERE id=?
+                ''', (project_id, title, code, language, config_str, snippet_id))
+                conn.commit()
+                return True
+
+        c.execute('SELECT id FROM snippets WHERE project_id = ? AND title = ? LIMIT 1', (project_id, title))
+        exists = c.fetchone()
+        if exists:
+            c.execute('''
+                UPDATE snippets
+                SET code=?, language=?, style_config=?
+                WHERE id=?
+            ''', (code, language, config_str, exists[0]))
+        else:
+            c.execute('''
+                INSERT INTO snippets (project_id, title, code, language, style_config)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (project_id, title, code, language, config_str))
         conn.commit()
         return True
     except Exception as e:
@@ -92,17 +113,23 @@ def delete_project(project_name):
     finally:
         conn.close()
 
-def get_all_grouped():
+def get_all_grouped(keyword=None):
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    # 联表查询
-    c.execute('''
+    query = '''
         SELECT s.id, s.title, s.code, s.language, s.created_at, p.name as project_name
         FROM snippets s
         JOIN projects p ON s.project_id = p.id
-        ORDER BY p.created_at DESC, s.created_at DESC
-    ''')
+    '''
+    params = []
+    if keyword:
+        like = f"%{keyword}%"
+        query += " WHERE s.title LIKE ? OR s.code LIKE ? OR p.name LIKE ?"
+        params.extend([like, like, like])
+
+    query += ' ORDER BY p.created_at DESC, s.created_at DESC'
+    c.execute(query, params)
     rows = c.fetchall()
     conn.close()
     

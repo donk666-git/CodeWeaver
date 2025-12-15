@@ -1,24 +1,8 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-/* static/js/taskpane.js v4.5 - 智能表格全选吸取 */
-=======
 /* static/js/taskpane.js v4.7 - 智能表格全选吸取 */
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
-=======
-/* static/js/taskpane.js v4.7 - 智能表格全选吸取 */
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 
 // 全局变量
-let deleteTarget = null; 
+let deleteTarget = null;
 let confirmModal = null;
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-Office.onReady((info) => {
-    if (info.host === Office.HostType.Word) {
-        $(document).ready(function () {
-            console.log("✅ CodeWeaver v4.5 Ready");
-=======
 let currentEditingId = null;
 let searchTimer = null;
 let hljsConfigured = false;
@@ -28,21 +12,11 @@ Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
             $(document).ready(function () {
                 console.log("✅ CodeWeaver v4.6 Ready");
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
-=======
-let currentEditingId = null;
-let searchTimer = null;
-let hljsConfigured = false;
-let listingCounter = 1;
-
-Office.onReady((info) => {
-    if (info.host === Office.HostType.Word) {
-            $(document).ready(function () {
-                console.log("✅ CodeWeaver v4.6 Ready");
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
             
             // 1. 初始化
             syncProjectName();
+            buildLanguageDropdown();
+            ensureHighlighter();
             loadSnippets();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
@@ -54,8 +28,8 @@ Office.onReady((info) => {
             $('#btnExplain').click(requestExplanation);
             
             // 3. 绑定静态按钮 (项目库页)
-            $('#btnRefresh').click(loadSnippets);
-            $('#library-tab').click(loadSnippets);
+            $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
+            $('#library-tab').click(() => loadSnippets($('#searchBox').val()));
 
             // 4. 事件委托
             $(document).on('click', '.action-load-editor', function() {
@@ -63,6 +37,22 @@ Office.onReady((info) => {
                 const lang = $(this).data('lang');
                 $('#codeSource').val(code);
                 $('#langSelect').val(lang);
+                clearEditingState();
+                new bootstrap.Tab('#editor-tab').show();
+            });
+
+            $(document).on('click', '.action-edit', function() {
+                const code = decodeURIComponent($(this).data('code'));
+                const lang = $(this).data('lang');
+                const title = $(this).data('title');
+                const project = $(this).data('project');
+                currentEditingId = $(this).data('id');
+
+                $('#codeSource').val(code);
+                $('#langSelect').val(lang);
+                $('#inputTitle').val(title);
+                $('#inputProject').val(project);
+                updateEditingState(title, project);
                 new bootstrap.Tab('#editor-tab').show();
             });
 
@@ -86,10 +76,9 @@ Office.onReady((info) => {
 
             // 5. 搜索过滤
             $('#searchBox').on('keyup', function() {
-                var val = $(this).val().toLowerCase();
-                $(".snippet-item").each(function() {
-                    $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
-                });
+                const val = $(this).val();
+                if (searchTimer) clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => loadSnippets(val), 250);
             });
         });
     }
@@ -103,11 +92,6 @@ function showStatus(msg, type='info') {
     setTimeout(() => $('#statusMsg').empty(), 3000);
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 function normalizeIndentationText(raw, language = '') {
     if (!raw) return '';
     const tabSize = 4;
@@ -196,7 +180,6 @@ function clearEditingState() {
     $('#editState').empty();
 }
 
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 function syncProjectName() {
     try {
         const url = Office.context.document.url;
@@ -221,33 +204,28 @@ async function saveSnippet() {
 
     try {
         showStatus("⏳ 保存中...");
+        const payload = { project, title, code, language: $('#langSelect').val() };
+        if (currentEditingId) payload.id = currentEditingId;
         const res = await fetch('/api/snippets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project, title, code, language: $('#langSelect').val() })
+            body: JSON.stringify(payload)
         });
         if ((await res.json()).status === 'success') {
             showStatus("✅ 成功", "success");
-            $('#inputTitle').val('');
-            loadSnippets();
+            if (!currentEditingId) $('#inputTitle').val('');
+            clearEditingState();
+            loadSnippets($('#searchBox').val());
         } else showStatus("❌ 失败", "error");
     } catch (e) { showStatus("❌ 错误", "error"); }
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-async function loadSnippets() {
-=======
-=======
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
 async function requestExplanation() {
     const code = $('#codeSource').val();
     if (!code) return showStatus("⚠️ 当前无代码", "error");
     const lang = $('#langSelect').val();
 
     $('#aiExplainResult').text('⏳ AI 解读中...');
-<<<<<<< HEAD
-=======
     try {
         const res = await fetch('/api/explain', {
             method: 'POST',
@@ -267,35 +245,17 @@ async function requestExplanation() {
 }
 
 async function loadSnippets(keyword = '') {
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
     try {
-        const res = await fetch('/api/explain', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, language: lang })
-        });
-        const data = await res.json();
-        if (data.status === 'success') {
-            $('#aiExplainResult').text(data.explanation || '暂无解释');
-        } else {
-            $('#aiExplainResult').text(data.message || '解释失败');
-        }
-    } catch (e) {
-        console.error(e);
-        $('#aiExplainResult').text('网络异常');
-    }
-}
-
-async function loadSnippets(keyword = '') {
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
-    try {
-        const res = await fetch('/api/snippets?t=' + Date.now());
+        const params = new URLSearchParams({ t: Date.now() });
+        if (keyword) params.append('q', keyword);
+        const res = await fetch('/api/snippets?' + params.toString());
         const grouped = await res.json();
         const $cont = $('#gistContainer');
         $cont.empty();
 
         if (Object.keys(grouped).length === 0) {
-            $cont.html('<div class="text-center text-muted mt-4">暂无代码</div>');
+            const msg = keyword ? '未找到匹配的代码' : '暂无代码';
+            $cont.html(`<div class="text-center text-muted mt-4">${msg}</div>`);
             return;
         }
 
@@ -322,8 +282,15 @@ async function loadSnippets(keyword = '') {
                             <span class="badge-lang">${item.language}</span>
                         </div>
                         <div>
-                            <button class="btn-action btn-locate action-locate" 
-                                    data-code="${safeCode}" 
+                            <button class="btn-action action-edit"
+                                    data-id="${item.id}"
+                                    data-code="${safeCode}"
+                                    data-lang="${item.language}"
+                                    data-title="${item.title}"
+                                    data-project="${projName}"
+                                    title="编辑">✏️</button>
+                            <button class="btn-action btn-locate action-locate"
+                                    data-code="${safeCode}"
                                     title="在文档中查找">🔍</button>
                                     
                             <button class="btn-action btn-delete action-del-snippet" 
@@ -374,7 +341,7 @@ async function performDelete() {
         
         const res = await fetch(url, opts);
         if ((await res.json()).status === 'success') {
-            loadSnippets(); 
+            loadSnippets($('#searchBox').val());
         } else { alert("删除失败"); }
     } catch (e) { alert("网络错误"); }
 }
@@ -410,26 +377,24 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     const normalizedCode = normalizeIndentationText(code, lang);
     if (!normalizedCode) return '';
 
-    // --- 1. 定义语法高亮颜色方案 (内联样式映射) ---
-    // 分为 'light' (用于 gray/green 主题) 和 'dark' (用于 dark 主题)
     const syntaxThemes = {
         light: {
-            'keyword': 'color:#d73a49; font-weight:bold;',       // 关键字 (红)
-            'built_in': 'color:#005cc5;',                         // 内置函数 (蓝)
-            'type': 'color:#005cc5;',                             // 类型
-            'literal': 'color:#005cc5;',                          // 字面量
-            'number': 'color:#005cc5;',                           // 数字
-            'string': 'color:#032f62;',                           // 字符串 (深蓝)
-            'title': 'color:#6f42c1; font-weight:bold;',          // 函数名 (紫)
-            'attr': 'color:#22863a;',                             // 属性 (绿)
-            'comment': 'color:#6a737d; font-style:italic;',       // 注释 (灰斜体)
-            'variable': 'color:#24292f;',                         // 变量
-            'symbol': 'color:#005cc5;',                           // 符号
-            'function': 'color:#6f42c1;',                         // 函数调用
-            'default': 'color:#24292f;'                           // 默认文本
+            'keyword': 'color:#d73a49; font-weight:bold;',
+            'built_in': 'color:#005cc5;',
+            'type': 'color:#005cc5;',
+            'literal': 'color:#005cc5;',
+            'number': 'color:#005cc5;',
+            'string': 'color:#032f62;',
+            'title': 'color:#6f42c1; font-weight:bold;',
+            'attr': 'color:#22863a;',
+            'comment': 'color:#6a737d; font-style:italic;',
+            'variable': 'color:#24292f;',
+            'symbol': 'color:#005cc5;',
+            'function': 'color:#6f42c1;',
+            'default': 'color:#24292f;'
         },
         dark: {
-            'keyword': 'color:#f92672; font-weight:bold;',        // Monokai 风格
+            'keyword': 'color:#f92672; font-weight:bold;',
             'built_in': 'color:#66d9ef;',
             'type': 'color:#66d9ef;',
             'literal': 'color:#ae81ff;',
@@ -445,27 +410,23 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
         }
     };
 
-    // 根据用户选择的主题决定使用哪套语法颜色
     const currentSyntax = (theme === 'dark') ? syntaxThemes.dark : syntaxThemes.light;
 
-    // --- 2. 容器样式配置 ---
     let bg_code = '#f6f8fa'; let bg_num = '#fff'; let color_code = '#24292f'; let color_num = '#6e7781'; let border = '#d0d7de';
-    
-    if (theme === 'dark') { 
-        bg_code = '#272822'; bg_num = '#fff'; color_code = '#f8f8f2'; border = '#272822'; 
+
+    if (theme === 'dark') {
+        bg_code = '#272822'; bg_num = '#fff'; color_code = '#f8f8f2'; border = '#272822';
     } else if (theme === 'green') {
-        bg_code = '#e9f5e9'; border = '#e9f5e9'; // 护眼绿
+        bg_code = '#e9f5e9'; border = '#e9f5e9';
     }
-    
-    // padding:0; margin:0; line-height:100% 是防止 Word 默认段落间距干扰的关键
+
+    const escapeHtml = (txt) => txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
     const style_common = "padding:0; margin:0; border:none; line-height:100%; vertical-align:middle;";
     const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
     const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
 
-<<<<<<< HEAD
-    // --- 3. 生成 HTML ---
-=======
     ensureHighlighter();
 
     let highlightedBlock = '';
@@ -490,45 +451,15 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     let lines = highlightedBlock.split(/\r?\n/);
     while (lines.length && lines[lines.length - 1] === '') lines.pop();
 
->>>>>>> 9b69a78 (Add indentation fixes and code explanation support)
     let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
-
-    const lines = code.split(/\r?\n/);
     lines.forEach((line, i) => {
-        let lineHtml = '';
-        try {
-            if (!line) {
-                lineHtml = '&nbsp;';
-            } else if (typeof hljs !== 'undefined') {
-                // A. 调用 highlight.js 生成带有 class 的 HTML
-                const res = (lang && lang !== 'auto') 
-                    ? hljs.highlight(line, {language: lang, ignoreIllegals:true}) 
-                    : hljs.highlightAuto(line);
-                let rawHtml = res.value;
+        const lineHtml = line === '' ? '&nbsp;' : line;
 
-                // B. 【核心步骤】正则替换：把 class="hljs-xxx" 变成 style="..."
-                lineHtml = rawHtml.replace(/<span class="hljs-([^"]+)">/g, (match, cls) => {
-                    // cls 可能是 "keyword" 或 "keyword language-python" 等，只取第一个词
-                    const key = cls.split(' ')[0]; 
-                    const style = currentSyntax[key] || '';
-                    return style ? `<span style="${style}">` : `<span>`; // 如果有对应颜色就替换，否则保持原样
-                });
-
-            } else {
-                // 降级处理
-                lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-            }
-        } catch(e) { 
-            lineHtml = line.replace(/&/g, "&amp;").replace(/</g, "&lt;"); 
-        }
-
-        // 边框逻辑
         let cellBorder = `border-left:${border_style}; border-right:${border_style};`;
         if (i === 0) cellBorder += `border-top:${border_style};`;
         if (i === lines.length - 1) cellBorder += `border-bottom:${border_style};`;
 
-        // 拼接 (紧凑模式)
-        html += `<tr><td style="${style_num}">${i + 1}</td><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
+        html += `<tr><td style="${style_num}">&nbsp;</td><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
     });
 
     html += "</table>";

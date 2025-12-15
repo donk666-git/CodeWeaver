@@ -2,6 +2,16 @@
 
 body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size: 13px; }
 
+.app-shell { max-width: 1080px; margin: 0 auto; }
+.header-bar { background: linear-gradient(90deg, #f5f7fb 0%, #ffffff 100%); border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+.glass-card { background: #fff; border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
+.nav-tabs .nav-link { color: #495057; font-weight: 600; }
+.nav-tabs .nav-link.active { background: #0d6efd; color: #fff; box-shadow: 0 8px 16px rgba(13,110,253,0.25); }
+.form-control, .form-select { border-radius: 8px; }
+.btn { border-radius: 8px; }
+.input-group-text { border-radius: 8px 0 0 8px; }
+.badge-lang { font-size: 10px; background-color: #eee; color: #555; border-radius: 4px; padding: 1px 5px; margin-left: 5px;}
+
 /* 卡片样式优化 */
 .project-card { border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 12px; background: #fff; overflow: hidden;}
 .project-header { background: #f6f8fa; border-bottom: 1px solid #e1e4e8; padding: 8px 12px; font-weight: 600; color: #24292f; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
@@ -23,5 +33,5 @@ body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size
 .btn-del-proj { color: #cf222e; font-size: 12px; border: 1px solid transparent; padding: 2px 6px; border-radius: 4px; background: none; }
 .btn-del-proj:hover { border-color: #cf222e; background: #fff; }
 
+
 textarea { font-family: Consolas, monospace; font-size: 11px; }
-.badge-lang { font-size: 10px; background-color: #eee; color: #555; border-radius: 4px; padding: 1px 5px; margin-left: 5px;}
