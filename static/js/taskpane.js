@@ -423,10 +423,10 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     const escapeHtml = (txt) => txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const style_common = "padding:0; margin:0; border:none; line-height:100%; vertical-align:middle;";
-    const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
+    //const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
     const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
-
+    
     ensureHighlighter();
 
     let highlightedBlock = '';
@@ -459,7 +459,7 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
         if (i === 0) cellBorder += `border-top:${border_style};`;
         if (i === lines.length - 1) cellBorder += `border-bottom:${border_style};`;
 
-        html += `<tr><td style="${style_num}">&nbsp;</td><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
+        html += `<tr><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
     });
 
     html += "</table>";
