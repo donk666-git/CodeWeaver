@@ -26,6 +26,7 @@ Office.onReady((info) => {
             $('#btnGetSelection').click(getFromSelection);
             $('#btnNormalize').click(applyIndentationNormalization);
             $('#btnExplain').click(requestExplanation);
+             $('#btnRenumber').click(renumberListings);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
@@ -346,23 +347,104 @@ async function performDelete() {
     } catch (e) { alert("网络错误"); }
 }
 
+// 修复后的插入功能
+// 修复后的重新编号功能 - 彻底解决跨上下文问题
+async function renumberListings() {
+    try {
+        showStatus("⏳ 正在重新编号...");
+        
+        await Word.run(async (ctx) => {
+            // 1. 一次性获取所有段落，并加载它们的文本
+            const paragraphs = ctx.document.body.paragraphs;
+            ctx.load(paragraphs, 'text');
+            await ctx.sync(); // 第一次同步：获取所有段落文本
+            
+            // 2. 筛选出需要重新编号的段落
+            const listingParagraphs = [];
+            for (let i = 0; i < paragraphs.items.length; i++) {
+                const paragraph = paragraphs.items[i];
+                // 此时 paragraph.text 已经可用
+                if (paragraph.text.match(/Listing\s+\d+:/)) {
+                    listingParagraphs.push(paragraph);
+                }
+            }
+            
+            // 3. 在一个循环中执行所有替换操作（这些操作会排队等待）
+            for (let i = 0; i < listingParagraphs.length; i++) {
+                const paragraph = listingParagraphs[i];
+                const oldText = paragraph.text;
+                
+                // 提取描述部分
+                const match = oldText.match(/Listing\s+\d+:(.*)/);
+                const description = match ? match[1] : '';
+                
+                // 构建新文本
+                const newText = `Listing ${i + 1}:${description}`;
+                
+                // 执行替换（此操作会排队）
+                paragraph.insertText(newText, 'Replace');
+            }
+            
+            // 4. 最后一次性同步所有更改
+            await ctx.sync(); // 第二次同步：应用所有替换
+            
+            // 更新计数器
+            listingCounter = listingParagraphs.length + 1;
+        });
+        
+        showStatus(`✅ 已重新编号`);
+    } catch (e) {
+        console.error(e);
+        showStatus("❌ 重新编号失败: " + e.message, "error");
+    }
+}
+
+// 修复后的插入功能 - 彻底解决跨上下文问题
 async function insertHighlight() {
     const code = $('#codeSource').val();
     const lang = $('#langSelect').val();
     const theme = $('#themeSelect').val();
 
     if (!code) return showStatus("❌ 代码为空", "error");
+    
     try {
-        const html = generateHighlightHtml(code, lang, theme, listingCounter)
-        await Word.run(async (ctx)=>{
-            ctx.document.getSelection().insertHtml(html, 'Replace');
-            await ctx.sync();
+        let newListingNumber = 1;
+        
+        await Word.run(async (ctx) => {
+            // 1. 获取所有段落，并加载它们的文本
+            const paragraphs = ctx.document.body.paragraphs;
+            ctx.load(paragraphs, 'text');
+            await ctx.sync(); // 第一次同步：获取所有段落文本
+            
+            // 2. 遍历所有段落，找到最大的Listing编号
+            let maxNumberInDoc = 0;
+            for (let i = 0; i < paragraphs.items.length; i++) {
+                const paragraph = paragraphs.items[i];
+                const match = paragraph.text.match(/Listing\s+(\d+):/);
+                if (match) {
+                    const number = parseInt(match[1]);
+                    if (number > maxNumberInDoc) {
+                        maxNumberInDoc = number;
+                    }
+                }
+            }
+            
+            // 3. 计算新编号（使用文档最大编号+1，这最稳定且能避免重复）
+            newListingNumber = maxNumberInDoc + 1;
+            
+            // 4. 获取选区并插入HTML
+            const selection = ctx.document.getSelection();
+            const html = generateHighlightHtml(code, lang, theme, newListingNumber);
+            selection.insertHtml(html, 'Replace');
+            
+            // 5. 最后同步
+            await ctx.sync(); // 第二次同步：应用插入操作
         });
-        listingCounter += 1;
-        showStatus("✅ 成功插入");
+        
+        showStatus(`✅ 成功插入 (Listing ${newListingNumber})`);
     } catch (e) {
         console.error(e);
-        showStatus("❌ 插入失败:"+ e.message, "error");
+        showStatus("❌ 插入失败: " + e.message, "error");
     }
 }
 

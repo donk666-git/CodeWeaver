@@ -19,7 +19,7 @@
     <div class="d-flex align-items-center mb-3 header-bar">
         <div>
             <div class="fw-bold text-dark">CodeWeaver Pro</div>
-            <div class="text-muted small">快速整理 · 精准插入 · 稳定高亮</div>
+            <div class="text-muted small">整理缩进 · 自动表注 · 稳定高亮 · 集成ai</div>
         </div>
         <div class="ms-auto d-flex align-items-center gap-2">
             <span class="badge bg-primary-subtle text-primary fw-semibold px-2">Release</span>
@@ -27,16 +27,16 @@
     </div>
 
     <ul class="nav nav-tabs mb-3 shadow-sm rounded-pill bg-white px-1 py-1">
-        <li class="nav-item"><button class="nav-link active rounded-pill" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor">🖊️ 编辑器</button></li>
-        <li class="nav-item"><button class="nav-link rounded-pill" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" id="btnRefreshTab">📚 项目库</button></li>
+        <li class="nav-item"><button class="nav-link active rounded-pill" id="editor-tab" data-bs-toggle="tab" data-bs-target="#editor">🖊️ Editor</button></li>
+        <li class="nav-item"><button class="nav-link rounded-pill" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" id="btnRefreshTab">📚 Gist</button></li>
     </ul>
 
     <div class="tab-content">
         <div class="tab-pane fade show active" id="editor">
             <div class="glass-card p-3 mb-3">
                 <div class="row g-2 mb-3">
-                    <div class="col-6"><input type="text" id="inputProject" class="form-control form-control-sm" placeholder="📂 项目名"></div>
-                    <div class="col-6"><input type="text" id="inputTitle" class="form-control form-control-sm" placeholder="📝 标题"></div>
+                    <div class="col-6"><input type="text" id="inputProject" class="form-control form-control-sm" placeholder="📂 project name"></div>
+                    <div class="col-6"><input type="text" id="inputTitle" class="form-control form-control-sm" placeholder="📝 title"></div>
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-7">
@@ -44,9 +44,9 @@
                     </div>
                     <div class="col-5">
                         <select id="themeSelect" class="form-select form-select-sm">
-                            <option value="gray">🎨 经典灰框</option>
-                            <option value="dark">🌑 极客全黑</option>
-                            <option value="green">🍃 护眼绿底</option>
+                            <option value="gray">🎨 classical grey</option>
+                            <option value="dark">🌑 VS all black</option>
+                            <option value="green">🍃 green</option>
                         </select>
                     </div>
                 </div>
@@ -60,11 +60,12 @@
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-secondary" id="btnNormalize">🧹 整理缩进</button>
                             <button type="button" class="btn btn-outline-info" id="btnExplain">🤖 AI 解读</button>
+                            <button type="button" class="btn btn-outline-warning" id="btnRenumber">🔢 重新编号</button>
                         </div>
                     </div>
                     <div class="d-grid gap-2 flex-grow-1 ms-2" style="max-width: 240px;">
-                        <button type="button" class="btn btn-primary" id="btnInsert">⚡ 插入高亮</button>
-                        <button type="button" class="btn btn-success" id="btnSave">💾 保存</button>
+                        <button type="button" class="btn btn-primary" id="btnInsert">⚡ highlight</button>
+                        <button type="button" class="btn btn-success" id="btnSave">💾 save</button>
                     </div>
                 </div>
             </div>
@@ -80,7 +81,7 @@
                         <input type="text" id="searchBox" class="form-control form-control-sm border-start-0" placeholder="按标题 / 代码 / 项目搜索">
                     </div>
                     <div class="ms-auto d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-primary" id="btnRefresh">🔄 刷新</button>
+                        <button class="btn btn-sm btn-outline-primary" id="btnRefresh">🔄 refresh</button>
                     </div>
                 </div>
                 <div id="gistContainer"></div>
