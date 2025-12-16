@@ -9,6 +9,8 @@ import requests
 
 app = Flask(__name__)
 
+SILCON_API_KEY = os.getenv("SILCON_API_KEY");
+
 @app.route('/taskpane.html')
 def taskpane():
     return render_template('taskpane.html')
