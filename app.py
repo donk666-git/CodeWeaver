@@ -9,7 +9,7 @@ import requests
 
 app = Flask(__name__)
 
-SILCON_API_KEY = os.getenv("SILCON_API_KEY");
+SILCON_API_KEY = os.getenv("SILCON_API_KEY")
 
 @app.route('/taskpane.html')
 def taskpane():
@@ -67,9 +67,9 @@ def explain_code():
         if not code:
             return jsonify({'status': 'error', 'message': '缺少代码内容'}), 400
 
-        api_key = os.environ.get('DEEPSEEK_API_KEY')
+        api_key = os.environ.get('SILCON_API_KEY')
         if not api_key:
-            return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.DEEPSEEK_API_KEY)'}), 400
+            return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.SILCON_API_KEY)'}), 400
 
         prompt = f"请用中文解释这段{language or '代码'}，突出核心逻辑：\n```\n{code}\n```"
         payload = {

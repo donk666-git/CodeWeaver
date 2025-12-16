@@ -226,7 +226,8 @@ async function requestExplanation() {
     if (!code) return showStatus("⚠️ 当前无代码", "error");
     const lang = $('#langSelect').val();
 
-    $('#aiExplainResult').text('⏳ AI 解读中...');
+    const $result = $('#aiExplainResult');
+    $result.removeClass('ai-error ai-ready').addClass('ai-loading').text('⏳ AI 解读中...');
     try {
         const res = await fetch('/api/explain', {
             method: 'POST',
@@ -235,13 +236,13 @@ async function requestExplanation() {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            $('#aiExplainResult').text(data.explanation || '暂无解释');
+            $result.removeClass('ai-loading ai-error').addClass('ai-ready').text(data.explanation || '暂无解释');
         } else {
-            $('#aiExplainResult').text(data.message || '解释失败');
+            $result.removeClass('ai-loading ai-ready').addClass('ai-error').text(data.message || '解释失败');
         }
     } catch (e) {
         console.error(e);
-        $('#aiExplainResult').text('网络异常');
+        $result.removeClass('ai-ready ai-loading').addClass('ai-error').text('网络异常');
     }
 }
 

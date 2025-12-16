@@ -35,3 +35,30 @@ body { font-family: "Segoe UI", sans-serif; background-color: #f8f9fa; font-size
 
 
 textarea { font-family: Consolas, monospace; font-size: 11px; }
+
+/* AI explanation panel */
+#aiExplainResult {
+  min-height: 110px;
+  padding: 12px 14px;
+  margin-top: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #343a40 !important;
+  text-align: left !important;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+
+#aiExplainResult.ai-loading {
+  color: #0d6efd;
+}
+
+#aiExplainResult.ai-error {
+  color: #d6336c;
+}
+
+#aiExplainResult.ai-ready {
+  color: #212529;
+}
