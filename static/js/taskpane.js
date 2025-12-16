@@ -7,6 +7,7 @@ let currentEditingId = null;
 let searchTimer = null;
 let hljsConfigured = false;
 let listingCounter = 1;
+let explanationCollapsed = false;
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -17,6 +18,9 @@ Office.onReady((info) => {
             syncProjectName();
             buildLanguageDropdown();
             ensureHighlighter();
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({ gfm: true, breaks: true });
+            }
             loadSnippets();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
@@ -27,6 +31,8 @@ Office.onReady((info) => {
             $('#btnNormalize').click(applyIndentationNormalization);
             $('#btnExplain').click(requestExplanation);
              $('#btnRenumber').click(renumberListings);
+            $('#toggleExplain').click(toggleExplainPanel);
+            setExplainVisibility(true);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
@@ -91,6 +97,32 @@ function showStatus(msg, type='info') {
     const color = type === 'error' ? 'text-danger' : 'text-success';
     $('#statusMsg').html(`<span class="${color}">${msg}</span>`);
     setTimeout(() => $('#statusMsg').empty(), 3000);
+}
+
+function setExplainVisibility(show) {
+    explanationCollapsed = !show;
+    const $result = $('#aiExplainResult');
+    const $toggle = $('#toggleExplain');
+    if (show) {
+        $result.removeClass('d-none');
+        $toggle.text('收起');
+    } else {
+        $result.addClass('d-none');
+        $toggle.text('展开');
+    }
+}
+
+function toggleExplainPanel() {
+    setExplainVisibility(explanationCollapsed);
+}
+
+function renderExplanation(content) {
+    const $result = $('#aiExplainResult');
+    if (typeof marked !== 'undefined') {
+        $result.html(marked.parse(content || ''));
+    } else {
+        $result.text(content || '');
+    }
 }
 
 function normalizeIndentationText(raw, language = '') {
@@ -227,7 +259,9 @@ async function requestExplanation() {
     const lang = $('#langSelect').val();
 
     const $result = $('#aiExplainResult');
-    $result.removeClass('ai-error ai-ready').addClass('ai-loading').text('⏳ AI 解读中...');
+    setExplainVisibility(true);
+    $result.removeClass('ai-error ai-ready').addClass('ai-loading');
+    renderExplanation('⏳ AI 解读中...');
     try {
         const res = await fetch('/api/explain', {
             method: 'POST',
@@ -236,13 +270,16 @@ async function requestExplanation() {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            $result.removeClass('ai-loading ai-error').addClass('ai-ready').text(data.explanation || '暂无解释');
+            $result.removeClass('ai-loading ai-error').addClass('ai-ready');
+            renderExplanation(data.explanation || '暂无解释');
         } else {
-            $result.removeClass('ai-loading ai-ready').addClass('ai-error').text(data.message || '解释失败');
+            $result.removeClass('ai-loading ai-ready').addClass('ai-error');
+            renderExplanation(data.message || '解释失败');
         }
     } catch (e) {
         console.error(e);
-        $result.removeClass('ai-ready ai-loading').addClass('ai-error').text('网络异常');
+        $result.removeClass('ai-ready ai-loading').addClass('ai-error');
+        renderExplanation('网络异常');
     }
 }
 

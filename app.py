@@ -71,11 +71,34 @@ def explain_code():
         if not api_key:
             return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.SILCON_API_KEY)'}), 400
 
-        prompt = f"请用中文解释这段{language or '代码'}，突出核心逻辑：\n```\n{code}\n```"
+        prompt = f"""
+请作为资深工程师，用中文输出结构化 Markdown 教程来解读这段{language or '代码'}。请严格按照以下章节组织内容，保持简洁且可复用：
+# 标题
+- 用一句话概括代码目的。
+
+## Overview
+- 用2~3句话说明整体思路与关键组件。
+
+## Step-by-step explanation
+1. 按执行顺序逐步说明核心逻辑。
+2. 点出关键函数/变量的职责与数据流。
+3. 强调边界条件、错误处理或性能考量。
+
+## Key points
+- 列出易错点、复杂度/性能、健壮性或安全注意事项。
+
+## Example
+- 如适用，提供简单示例、调用方式或运行提示。
+
+待讲解的代码如下：
+```
+{code}
+```
+""".strip()
         payload = {
             "model": "deepseek-ai/DeepSeek-V3.2",
             "messages": [
-                {"role": "system", "content": "You are a senior engineer providing concise, accurate explanations."},
+                {"role": "system", "content": "You are a senior engineer who writes concise, accurate, structured Chinese Markdown explanations with sections: Title, Overview, Step-by-step explanation, Key points, Example."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.2
