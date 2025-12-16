@@ -463,8 +463,15 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     });
 
     html += "</table>";
-    const captionText = listingNo ? `Listing ${listingNo}:` : 'Listing:';
-    html += `<div style="text-align:center; font-family:'Times New Roman'; font-size:10.5pt; margin-top:4px;">${captionText}</div>`;
+   const captionText = listingNo
+  ? `Listing ${listingNo}:<span>&nbsp;</span>`
+  : 'Listing:<span>&nbsp;</span>';
+
+html += `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-top:4px;">
+    <tr>
+        <td style="text-align:center; font-family:'Times New Roman'; font-size:10.5pt; padding:0; border:none;">${captionText}</td>
+    </tr>
+</table>`;
     return html;
 }
 // 【关键修复：智能吸取模式】
