@@ -18,6 +18,7 @@ Office.onReady((info) => {
             buildLanguageDropdown();
             ensureHighlighter();
             loadSnippets();
+            renumberListings();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
             // 2. 绑定静态按钮
@@ -94,36 +95,322 @@ function showStatus(msg, type='info') {
 
 function normalizeIndentationText(raw, language = '') {
     if (!raw) return '';
-    const tabSize = 4;
-    let text = raw.replace(/\t/g, ' '.repeat(tabSize));
-    let lines = text.split(/\r?\n/);
-
-    while (lines.length && lines[lines.length - 1].trim() === '') {
-        lines.pop();
+    
+    // 1. 预处理：统一换行符，移除首尾空行
+    let text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let lines = text.split('\n');
+    
+    // 移除首尾空行
+    while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+    while (lines.length && lines[0].trim() === '') lines.shift();
+    
+    if (lines.length === 0) return '';
+    
+    const lang = (language || '').toLowerCase();
+    
+    // 2. 特殊处理：如果是Python，使用Python专用逻辑
+    if (lang.startsWith('python')) {
+        return normalizePythonIndentation(lines);
     }
-    while (lines.length && lines[0].trim() === '') {
-        lines.shift();
-    }
-
-    let minIndent = null;
+    
+    // 3. 其他语言：先处理多语句，再规范化缩进
+    lines = expandMultiStatements(lines, lang);
+    const indentUnit = detectIndentUnit(lines);
+    
+    // 规范化缩进
+    let depth = 0;
+    const normalized = [];
+    
     lines.forEach(line => {
-        if (!line.trim()) return;
-        const match = line.match(/^(\s+)/);
-        const indentLen = match ? match[1].length : 0;
-        if (minIndent === null || indentLen < minIndent) minIndent = indentLen;
+        const trimmed = line.trim();
+        if (!trimmed) {
+            normalized.push('');
+            return;
+        }
+        
+        // 计算缩进调整
+        const adjust = calculateIndentAdjust(trimmed, lang);
+        const baseDepth = Math.max(depth - adjust.decreaseBefore, 0);
+        const rebuilt = ' '.repeat(baseDepth * indentUnit) + trimmed;
+        normalized.push(rebuilt);
+        depth = Math.max(baseDepth + adjust.increaseAfter, 0);
     });
-
-    if (minIndent && minIndent > 0) {
-        lines = lines.map(line => {
-            if (!line.trim()) return '';
-            return line.startsWith(' '.repeat(minIndent)) ? line.slice(minIndent) : line.replace(/^\s+/, '');
-        });
-    }
-
-    lines = lines.map(line => line.replace(/\s+$/, ''));
-    return lines.join('\n');
+    
+    return normalized.join('\n');
 }
 
+// 新增：Python专用缩进规范化
+function normalizePythonIndentation(lines) {
+    const normalized = [];
+    const indentUnit = 4; // Python标准缩进为4空格
+    let depth = 0;
+    
+    lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            normalized.push('');
+            return;
+        }
+        
+        // 计算当前行的实际缩进级别
+        let currentDepth = 0;
+        const leadingSpaces = line.length - line.ltrimStart().length;
+        if (leadingSpaces > 0) {
+            currentDepth = Math.round(leadingSpaces / indentUnit);
+        }
+        
+        // 处理特殊行
+        let targetDepth = depth;
+        
+        // 减少缩进的情况
+        if (/^(elif|else|except|finally)\b/.test(trimmed)) {
+            targetDepth = Math.max(depth - 1, 0);
+        } else if (/^[}\]\)]/.test(trimmed)) {
+            // 虽然Python不用大括号，但为了兼容性保留
+            targetDepth = Math.max(depth - 1, 0);
+        }
+        
+        // 生成规范化行
+        normalized.push(' '.repeat(targetDepth * indentUnit) + trimmed);
+        
+        // 计算下一行的深度
+        if (/^def\s+|^class\s+|^if\s+|^elif\s+|^else\s*:\s*$|^for\s+|^while\s+|^try\s*:\s*$|^except\s+|^finally\s*:\s*$|^with\s+/.test(trimmed)) {
+            if (/:\s*$/.test(trimmed)) {
+                depth = targetDepth + 1;
+            } else {
+                depth = targetDepth;
+            }
+        } else if (/^(elif|else|except|finally)\b/.test(trimmed)) {
+            depth = targetDepth + 1;
+        } else {
+            depth = targetDepth;
+        }
+    });
+    
+    return normalized.join('\n');
+}
+
+// 新增：规范化现有缩进
+function normalizeExistingIndentation(lines, indentUnit) {
+    return lines.map(line => {
+        const trimmed = line.trimEnd();
+        const content = trimmed.trim();
+        if (!content) return '';
+        
+        // 计算当前缩进空格数
+        const leadingSpaces = trimmed.length - trimmed.ltrimStart().length;
+        // 规范化为指定单位的倍数
+        const normalizedIndent = Math.round(leadingSpaces / indentUnit) * indentUnit;
+        
+        return ' '.repeat(normalizedIndent) + content;
+    });
+}
+
+function detectIndentUnit(lines) {
+    const counts = [];
+    lines.forEach(line => {
+        const match = line.match(/^(\s+)/);
+        if (match) {
+            const spaces = match[1].length;
+            if (spaces > 0 && spaces < 20) {
+                counts.push(spaces);
+            }
+        }
+    });
+    
+    if (counts.length === 0) return 4;
+    
+    // 找出最常见的缩进单位
+    const freq = {};
+    counts.forEach(n => {
+        const unit = n % 4 === 0 ? 4 : n % 2 === 0 ? 2 : n;
+        freq[unit] = (freq[unit] || 0) + 1;
+    });
+    
+    let best = 4, bestCount = 0;
+    Object.entries(freq).forEach(([unit, cnt]) => {
+        if (cnt > bestCount) { 
+            bestCount = cnt; 
+            best = parseInt(unit, 10); 
+        }
+    });
+    
+    return best || 4;
+}
+
+// String polyfill
+if (!String.prototype.trimEnd) {
+    String.prototype.trimEnd = function() {
+        return this.replace(/\s+$/, '');
+    };
+}
+
+if (!String.prototype.ltrimStart) {
+    String.prototype.ltrimStart = function() {
+        return this.replace(/^\s+/, '');
+    };
+}
+
+function expandMultiStatements(lines, language) {
+    const targetLangs = [
+        'javascript', 'js', 'typescript', 'ts', 
+        'java', 'c', 'cpp', 'csharp', 'cs',
+        'php', 'swift', 'kotlin', 'go', 'rust'
+    ];
+    const applicable = targetLangs.includes(language);
+    if (!applicable) return lines;
+
+    const splitSafe = (line) => {
+        const segments = [];
+        let buf = '';
+        let inStr = false;
+        let strChar = '';
+        let parenDepth = 0;
+        let braceDepth = 0;
+        
+        const pushBuf = () => {
+            const val = buf.trim();
+            if (val) segments.push(val);
+            buf = '';
+        };
+
+        const trimmed = line.trim();
+        
+        // 不拆分的情况
+        if (/^(for|while)\s*\([^)]*\)/i.test(trimmed)) return [line];
+        if (/^if\s*\([^)]*\)\s*[^{]/.test(trimmed)) return [line];
+        if (/^}\s*else\s*/.test(trimmed)) return [line];
+        if (/^}\s*catch\s*\(/.test(trimmed)) return [line];
+        if (/^}\s*finally/.test(trimmed)) return [line];
+
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            const prev = i > 0 ? line[i - 1] : '';
+            
+            if (inStr) {
+                buf += ch;
+                if (ch === strChar && prev !== '\\') {
+                    inStr = false;
+                    strChar = '';
+                }
+                continue;
+            }
+            
+            if (ch === '"' || ch === '\'' || ch === '`') {
+                inStr = true; 
+                strChar = ch; 
+                buf += ch; 
+                continue;
+            }
+            
+            if (ch === '(') parenDepth += 1;
+            if (ch === ')' && parenDepth > 0) parenDepth -= 1;
+            if (ch === '{') braceDepth += 1;
+            if (ch === '}' && braceDepth > 0) braceDepth -= 1;
+            
+            // 在括号深度为0且不在字符串中时，按分号拆分
+            if (ch === ';' && parenDepth === 0 && braceDepth === 0) {
+                pushBuf();
+                continue;
+            }
+            buf += ch;
+        }
+        pushBuf();
+        return segments.length ? segments : [line.trimEnd()];
+    };
+
+    return lines.flatMap(splitSafe);
+}
+function calculateIndentAdjust(content, language) {
+    let decreaseBefore = 0;
+    let increaseAfter = 0;
+    const lang = (language || '').toLowerCase();
+
+    // 处理结束符号
+    if (/^[}\]\)]/.test(content)) {
+        const closing = content.match(/^[}\]\)]+/);
+        decreaseBefore = closing ? closing[0].length : 0;
+    }
+
+    // 大括号语言的处理
+    const tokens = countBraceChanges(content);
+    decreaseBefore = Math.max(decreaseBefore, tokens.close);
+    const net = tokens.open - tokens.close;
+    if (net > 0) increaseAfter += net;
+    
+    // 处理 else, catch, finally 等关键字
+    if (/\b(else|catch|finally)\b/.test(content) && !/\{/.test(content)) {
+        decreaseBefore = Math.max(decreaseBefore, 1);
+        increaseAfter += 1;
+    }
+    
+    // 处理 case 语句
+    if (/^(case\s+\w+|default)\s*:\s*$/.test(content)) {
+        // case 通常与 switch 同级
+    }
+    
+    // 处理标签
+    if (/^\w+\s*:\s*$/.test(content) && !lang.includes('javascript') && !lang.includes('typescript')) {
+        // 标签不缩进
+    }
+
+    return { decreaseBefore, increaseAfter };
+}
+
+// 改进的大括号计数
+function countBraceChanges(content) {
+    let open = 0, close = 0;
+    let inStr = false;
+    let strChar = '';
+    let inComment = false;
+    
+    for (let i = 0; i < content.length; i++) {
+        const ch = content[i];
+        const prev = i > 0 ? content[i - 1] : '';
+        const next = i < content.length - 1 ? content[i + 1] : '';
+        
+        // 处理注释
+        if (!inStr && !inComment) {
+            if (ch === '/' && next === '/') {
+                break; // 单行注释
+            }
+            if (ch === '/' && next === '*') {
+                inComment = true;
+                i++;
+                continue;
+            }
+        }
+        
+        if (inComment) {
+            if (ch === '*' && next === '/') {
+                inComment = false;
+                i++;
+            }
+            continue;
+        }
+        
+        // 处理字符串
+        if (inStr) {
+            if (ch === strChar && prev !== '\\') {
+                inStr = false;
+                strChar = '';
+            }
+            continue;
+        }
+        
+        if (ch === '"' || ch === '\'' || ch === '`') {
+            inStr = true; 
+            strChar = ch; 
+            continue;
+        }
+        
+        // 计数大括号
+        if (ch === '{') open += 1;
+        else if (ch === '}') close += 1;
+    }
+    
+    return { open, close };
+}
 function applyIndentationNormalization() {
     const code = $('#codeSource').val();
     if (!code) return showStatus("⚠️ 当前无代码", "error");
@@ -132,6 +419,7 @@ function applyIndentationNormalization() {
     $('#codeSource').val(normalized);
     showStatus("✅ 缩进已整理");
 }
+
 
 function ensureHighlighter() {
     if (typeof hljs === 'undefined') return;
@@ -353,12 +641,14 @@ async function insertHighlight() {
 
     if (!code) return showStatus("❌ 代码为空", "error");
     try {
-        const html = generateHighlightHtml(code, lang, theme, listingCounter)
+        const renumberedNext = await renumberListings();
+        const html = generateHighlightHtml(code, lang, theme, renumberedNext || null);
         await Word.run(async (ctx)=>{
             ctx.document.getSelection().insertHtml(html, 'Replace');
             await ctx.sync();
         });
-        listingCounter += 1;
+        const recalculated = await renumberListings();
+        if (recalculated !== null) listingCounter = recalculated;
         showStatus("✅ 成功插入");
     } catch (e) {
         console.error(e);
@@ -423,9 +713,13 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     const escapeHtml = (txt) => txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const style_common = "padding:0; margin:0; border:none; line-height:100%; vertical-align:middle;";
-    const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
+    // 注释掉行号样式
+    //const style_num = `width:30px; background-color:${bg_num}; color:${color_num}; text-align:right; padding-right:5px; user-select:none; font-family:'Times New Roman'; font-size:6pt; ${style_common}`;
     const style_code = `width:100%; background-color:${bg_code}; color:${color_code}; padding-left:10px; font-family:'Courier New', monospace; font-size:10pt; white-space:pre; mso-no-proof:yes; ${style_common}`;
     const border_style = "1.5pt solid " + border;
+    // 不再需要偏移，因为我们移除了行号列
+    const table_width = `100%`;
+    const table_margin_left = `0`;
 
     ensureHighlighter();
 
@@ -451,21 +745,51 @@ function generateHighlightHtml(code, lang, theme, listingNo) {
     let lines = highlightedBlock.split(/\r?\n/);
     while (lines.length && lines[lines.length - 1] === '') lines.pop();
 
-    let html = `<table style="width:100%; border-collapse:collapse; border-spacing:0; margin-bottom:10px; background-color:#fff;">`;
+    let html = `<table style="width:${table_width}; border-collapse:collapse; border-spacing:0; margin-bottom:10px; margin-left:${table_margin_left}; background-color:#fff;">`;
     lines.forEach((line, i) => {
         const lineHtml = line === '' ? '&nbsp;' : line;
 
+        // 恢复原来的边框逻辑：只给第一行添加上边框，给最后一行添加下边框
         let cellBorder = `border-left:${border_style}; border-right:${border_style};`;
         if (i === 0) cellBorder += `border-top:${border_style};`;
         if (i === lines.length - 1) cellBorder += `border-bottom:${border_style};`;
 
-        html += `<tr><td style="${style_num}">&nbsp;</td><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
+        // 移除行号列，只保留代码列
+        html += `<tr><td style="${style_code} ${cellBorder}">${lineHtml}</td></tr>`;
     });
 
     html += "</table>";
-    const captionText = listingNo ? `Listing ${listingNo}:` : 'Listing:';
+    const captionText = listingNo ? `Listing ${listingNo}: ` : 'Listing: ';
     html += `<div style="text-align:center; font-family:'Times New Roman'; font-size:10.5pt; margin-top:4px;">${captionText}</div>`;
     return html;
+}
+
+async function renumberListings() {
+    let next = null;
+    try {
+        await Word.run(async (ctx) => {
+            const results = ctx.document.body.search('Listing', { matchCase: false });
+            results.load('items');
+            await ctx.sync();
+            results.items.forEach(r => r.load('text'));
+            await ctx.sync();
+
+            let counter = 1;
+            results.items.forEach(range => {
+                const raw = (range.text || '').replace(/\s+/g, ' ').trim();
+                if (/^Listing\s*(\d+)?\s*:\s*$/i.test(raw) || /^Listing:\s*$/i.test(raw)) {
+                    range.insertText(`Listing ${counter}: `, 'Replace');
+                    counter += 1;
+                }
+            });
+            await ctx.sync();
+            next = counter;
+        });
+    } catch (e) {
+        console.warn('renumber listings failed', e);
+    }
+    if (next !== null) listingCounter = next;
+    return next;
 }
 // 【关键修复：智能吸取模式】
 async function getFromSelection() {
