@@ -9,7 +9,7 @@ import requests
 
 app = Flask(__name__)
 
-SILCON_API_KEY = os.getenv("SILCON_API_KEY");
+SILCON_API_KEY = os.getenv("SILCON_API_KEY")
 
 @app.route('/taskpane.html')
 def taskpane():
@@ -67,18 +67,27 @@ def explain_code():
         if not code:
             return jsonify({'status': 'error', 'message': '缺少代码内容'}), 400
 
-        api_key = os.environ.get('DEEPSEEK_API_KEY')
+        api_key = os.environ.get('SILCON_API_KEY')
         if not api_key:
-            return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.DEEPSEEK_API_KEY)'}), 400
+            return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.SILCON_API_KEY)'}), 400
 
-        prompt = f"请用中文解释这段{language or '代码'}，突出核心逻辑：\n```\n{code}\n```"
+        prompt = f"""
+输出结构化教程来解读这段{language or '代码'}。请简洁、准确，
+以工程文档风格简要说明代码的作用和关键点。
+
+代码：
+```
+{code}
+```
+""".strip()
         payload = {
-            "model": "deepseek-chat",
+            "model": "zai-org/GLM-4.6",
             "messages": [
-                {"role": "system", "content": "You are a senior engineer providing concise, accurate explanations."},
+                {"role": "system", "content": "你是简洁的代码助手，不要思考过程，不要冗余解释。"},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.2
+            "temperature": 0.1,
+            "max_tokens": 400
         }
 
         resp = requests.post(
@@ -88,11 +97,17 @@ def explain_code():
                 'Content-Type': 'application/json'
             },
             json=payload,
-            timeout=20
+            timeout=30
         )
 
         if resp.status_code >= 400:
-            return jsonify({'status': 'error', 'message': '外部接口错误'}), 502
+            print("SiliconFlow status:", resp.status_code)
+            print("SiliconFlow response:", resp.text)
+            return jsonify({
+                'status': 'error',
+                'message': resp.text
+            }), 502
+
 
         result = resp.json()
         explanation = ''

@@ -7,6 +7,8 @@ let currentEditingId = null;
 let searchTimer = null;
 let hljsConfigured = false;
 let listingCounter = 1;
+let explanationCollapsed = false;
+let lastExplanationContent = ''; // 存储原始解释内容用于复制
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -17,6 +19,9 @@ Office.onReady((info) => {
             syncProjectName();
             buildLanguageDropdown();
             ensureHighlighter();
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({ gfm: true, breaks: true });
+            }
             loadSnippets();
             confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
 
@@ -27,6 +32,9 @@ Office.onReady((info) => {
             $('#btnNormalize').click(applyIndentationNormalization);
             $('#btnExplain').click(requestExplanation);
              $('#btnRenumber').click(renumberListings);
+            $('#toggleExplain').click(toggleExplainPanel);
+            $('#btnCopyExplain').click(copyExplanation);
+            setExplainVisibility(true);
             
             // 3. 绑定静态按钮 (项目库页)
             $('#btnRefresh').click(() => loadSnippets($('#searchBox').val()));
@@ -93,6 +101,59 @@ function showStatus(msg, type='info') {
     setTimeout(() => $('#statusMsg').empty(), 3000);
 }
 
+function setExplainVisibility(show) {
+    explanationCollapsed = !show;
+    const $result = $('#aiExplainResult');
+    const $toggle = $('#toggleExplain');
+    if (show) {
+        $result.removeClass('d-none');
+        $toggle.text('Hide');
+    } else {
+        $result.addClass('d-none');
+        $toggle.text('Show');
+    }
+}
+
+function toggleExplainPanel() {
+    setExplainVisibility(explanationCollapsed);
+}
+
+function copyExplanation() {
+    if (!lastExplanationContent) {
+        showStatus("⚠️ Nothing to copy", "error");
+        return;
+    }
+    navigator.clipboard.writeText(lastExplanationContent).then(() => {
+        showStatus("✅ Copied!", "success");
+    }).catch(() => {
+        showStatus("❌ Copy failed", "error");
+    });
+}
+
+function renderExplanation(content, isRaw = false) {
+    const $result = $('#aiExplainResult');
+    if (isRaw) {
+        lastExplanationContent = content || '';
+    }
+    if (content && isRaw) {
+        try {
+            if (typeof marked !== 'undefined') {
+                const html = typeof marked.parse === 'function' 
+                    ? marked.parse(content) 
+                    : marked(content);
+                $result.html(html);
+            } else {
+                $result.html(content.replace(/\n/g, '<br>'));
+            }
+        } catch (e) {
+            console.error('Markdown parse error:', e);
+            $result.html(content.replace(/\n/g, '<br>'));
+        }
+    } else {
+        $result.html(content || '');
+    }
+}
+
 function normalizeIndentationText(raw, language = '') {
     if (!raw) return '';
     const tabSize = 4;
@@ -127,11 +188,11 @@ function normalizeIndentationText(raw, language = '') {
 
 function applyIndentationNormalization() {
     const code = $('#codeSource').val();
-    if (!code) return showStatus("⚠️ 当前无代码", "error");
+    if (!code) return showStatus("⚠️ No code", "error");
     const lang = $('#langSelect').val();
     const normalized = normalizeIndentationText(code, lang);
     $('#codeSource').val(normalized);
-    showStatus("✅ 缩进已整理");
+    showStatus("✅ Formatted");
 }
 
 function ensureHighlighter() {
@@ -154,15 +215,15 @@ function buildLanguageDropdown() {
 
     merged.forEach(lang => {
         if (lang === 'label_common') {
-            $select.append('<option disabled>常用</option>');
+            $select.append('<option disabled>--Common--</option>');
             return;
         }
         if (lang === 'label_rest') {
-            $select.append('<option disabled>A–Z</option>');
+            $select.append('<option disabled>--A–Z--</option>');
             return;
         }
         let label = lang;
-        if (lang === 'auto') label = '✨ 自动检测';
+        if (lang === 'auto') label = '✨ Auto';
         else {
             const map = { cpp: 'C++', c: 'C', csharp: 'C#', javascript: 'JavaScript', typescript: 'TypeScript', sql: 'SQL', html: 'HTML', css: 'CSS', json: 'JSON', php: 'PHP', go: 'Go', ruby: 'Ruby', bash: 'Bash', kotlin: 'Kotlin', swift: 'Swift', rust: 'Rust', python: 'Python', java: 'Java' };
             label = map[lang] || lang.charAt(0).toUpperCase() + lang.slice(1);
@@ -198,13 +259,13 @@ function syncProjectName() {
 
 async function saveSnippet() {
     const code = $('#codeSource').val();
-    const project = $('#inputProject').val() || "默认";
+    const project = $('#inputProject').val() || "Default";
     const title = $('#inputTitle').val();
-    if (!code || !title) return showStatus("❌ 请填写代码和标题", "error");
+    if (!code || !title) return showStatus("❌ Code & title required", "error");
     localStorage.setItem("last_project", project);
 
     try {
-        showStatus("⏳ 保存中...");
+        showStatus("⏳ Saving...");
         const payload = { project, title, code, language: $('#langSelect').val() };
         if (currentEditingId) payload.id = currentEditingId;
         const res = await fetch('/api/snippets', {
@@ -213,20 +274,24 @@ async function saveSnippet() {
             body: JSON.stringify(payload)
         });
         if ((await res.json()).status === 'success') {
-            showStatus("✅ 成功", "success");
+            showStatus("✅ Saved", "success");
             if (!currentEditingId) $('#inputTitle').val('');
             clearEditingState();
             loadSnippets($('#searchBox').val());
-        } else showStatus("❌ 失败", "error");
-    } catch (e) { showStatus("❌ 错误", "error"); }
+        } else showStatus("❌ Failed", "error");
+    } catch (e) { showStatus("❌ Error", "error"); }
 }
 
 async function requestExplanation() {
     const code = $('#codeSource').val();
-    if (!code) return showStatus("⚠️ 当前无代码", "error");
+    if (!code) return showStatus("⚠️ No code", "error");
     const lang = $('#langSelect').val();
 
-    $('#aiExplainResult').text('⏳ AI 解读中...');
+    const $result = $('#aiExplainResult');
+    lastExplanationContent = ''; // 清空之前的内容
+    setExplainVisibility(true);
+    $result.removeClass('ai-error ai-ready').addClass('ai-loading');
+    renderExplanation('⏳ AI 解读中...', false);
     try {
         const res = await fetch('/api/explain', {
             method: 'POST',
@@ -235,13 +300,16 @@ async function requestExplanation() {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            $('#aiExplainResult').text(data.explanation || '暂无解释');
+            $result.removeClass('ai-loading ai-error').addClass('ai-ready');
+            renderExplanation(data.explanation || '暂无解释', true);
         } else {
-            $('#aiExplainResult').text(data.message || '解释失败');
+            $result.removeClass('ai-loading ai-ready').addClass('ai-error');
+            renderExplanation(data.message || '解释失败', false);
         }
     } catch (e) {
         console.error(e);
-        $('#aiExplainResult').text('网络异常');
+        $result.removeClass('ai-ready ai-loading').addClass('ai-error');
+        renderExplanation('网络异常', false);
     }
 }
 
@@ -343,80 +411,64 @@ async function performDelete() {
         const res = await fetch(url, opts);
         if ((await res.json()).status === 'success') {
             loadSnippets($('#searchBox').val());
-        } else { alert("删除失败"); }
-    } catch (e) { alert("网络错误"); }
+        } else { alert("Delete failed"); }
+    } catch (e) { alert("Network error"); }
 }
 
-// 修复后的插入功能
-// 修复后的重新编号功能 - 彻底解决跨上下文问题
+// Renumber listings
 async function renumberListings() {
     try {
-        showStatus("⏳ 正在重新编号...");
+        showStatus("⏳ Renumbering...");
         
         await Word.run(async (ctx) => {
-            // 1. 一次性获取所有段落，并加载它们的文本
             const paragraphs = ctx.document.body.paragraphs;
             ctx.load(paragraphs, 'text');
-            await ctx.sync(); // 第一次同步：获取所有段落文本
+            await ctx.sync();
             
-            // 2. 筛选出需要重新编号的段落
             const listingParagraphs = [];
             for (let i = 0; i < paragraphs.items.length; i++) {
                 const paragraph = paragraphs.items[i];
-                // 此时 paragraph.text 已经可用
                 if (paragraph.text.match(/Listing\s+\d+:/)) {
                     listingParagraphs.push(paragraph);
                 }
             }
             
-            // 3. 在一个循环中执行所有替换操作（这些操作会排队等待）
             for (let i = 0; i < listingParagraphs.length; i++) {
                 const paragraph = listingParagraphs[i];
                 const oldText = paragraph.text;
-                
-                // 提取描述部分
                 const match = oldText.match(/Listing\s+\d+:(.*)/);
                 const description = match ? match[1] : '';
-                
-                // 构建新文本
                 const newText = `Listing ${i + 1}:${description}`;
-                
-                // 执行替换（此操作会排队）
                 paragraph.insertText(newText, 'Replace');
             }
             
-            // 4. 最后一次性同步所有更改
-            await ctx.sync(); // 第二次同步：应用所有替换
-            
-            // 更新计数器
+            await ctx.sync();
             listingCounter = listingParagraphs.length + 1;
         });
         
-        showStatus(`✅ 已重新编号`);
+        showStatus(`✅ Renumbered`);
     } catch (e) {
         console.error(e);
-        showStatus("❌ 重新编号失败: " + e.message, "error");
+        showStatus("❌ Renumber failed: " + e.message, "error");
     }
 }
 
-// 修复后的插入功能 - 彻底解决跨上下文问题
+// Insert highlighted code
 async function insertHighlight() {
     const code = $('#codeSource').val();
     const lang = $('#langSelect').val();
     const theme = $('#themeSelect').val();
 
-    if (!code) return showStatus("❌ 代码为空", "error");
+    if (!code) return showStatus("❌ No code", "error");
     
     try {
         let newListingNumber = 1;
         
         await Word.run(async (ctx) => {
-            // 1. 获取所有段落，并加载它们的文本
             const paragraphs = ctx.document.body.paragraphs;
             ctx.load(paragraphs, 'text');
-            await ctx.sync(); // 第一次同步：获取所有段落文本
+            await ctx.sync();
             
-            // 2. 遍历所有段落，找到最大的Listing编号
             let maxNumberInDoc = 0;
             for (let i = 0; i < paragraphs.items.length; i++) {
                 const paragraph = paragraphs.items[i];
@@ -429,32 +481,23 @@ async function insertHighlight() {
                 }
             }
             
-            // 3. 计算新编号（使用文档最大编号+1，这最稳定且能避免重复）
             newListingNumber = maxNumberInDoc + 1;
             
-            // 4. 获取选区并插入HTML
             const selection = ctx.document.getSelection();
             const html = generateHighlightHtml(code, lang, theme, newListingNumber);
             selection.insertHtml(html, 'Replace');
             
-            // 5. 最后同步
-            await ctx.sync(); // 第二次同步：应用插入操作
+            await ctx.sync();
         });
         
-        showStatus(`✅ 成功插入 (Listing ${newListingNumber})`);
+        showStatus(`✅ Inserted (Listing ${newListingNumber})`);
     } catch (e) {
         console.error(e);
-        showStatus("❌ 插入失败: " + e.message, "error");
+        showStatus("❌ Insert failed: " + e.message, "error");
     }
 }
 
-/**
- * 本地生成高亮 HTML (基于 highlight.js)
- * 复刻原 Python 后端逻辑，保留表格样式和 Word 兼容性
- */
-/**
- * 本地生成高亮 HTML (终极版：修复行距 + 内联颜色样式)
- */
+// Generate highlighted HTML
 function generateHighlightHtml(code, lang, theme, listingNo) {
     const normalizedCode = normalizeIndentationText(code, lang);
     if (!normalizedCode) return '';
@@ -607,10 +650,10 @@ async function getFromSelection() {
 
             if (htmlSuccess) {
                 $('#codeSource').val(normalizeIndentationText(extractedHtmlCode.join('\n')));
-                return showStatus("✅ 已从表格吸取");
+                return showStatus("✅ Extracted from table");
             }
 
-            // 3. 尝试文本强力解析 (备用)
+            // Fallback: text parsing
             range.load("text");
             await ctx.sync();
             let rawText = range.text;
@@ -618,23 +661,22 @@ async function getFromSelection() {
             if (rawText && rawText.trim()) {
                 const lines = rawText.split(/\r\n|\r|\n/);
                 const cleanedLines = lines.map(line => {
-                    // 正则增强：移除行首的数字和空白
                     return line.replace(/^\s*\d+\s*/, '');
                 });
                 
                 $('#codeSource').val(normalizeIndentationText(cleanedLines.join('\n')));
-                showStatus("✅ 已吸取 (文本模式)");
+                showStatus("✅ Extracted (text)");
             } else {
-                showStatus("⚠️ 未选中内容", "error");
+                showStatus("⚠️ Nothing selected", "error");
             }
         });
     } catch(e){
         console.error(e);
-        showStatus("❌ 吸取失败", "error");
+        showStatus("❌ Extract failed", "error");
     }
 }
 
-// 【智能定位】
+// Smart locate in document
 async function locateInDoc(code) {
     if (!code) return;
     
@@ -643,22 +685,19 @@ async function locateInDoc(code) {
 
     let searchCandidates = [];
 
-    // 1. 最长的一行 (最独特，首选)
     let maxLine = "";
     for(let l of lines) {
         if(l.length > maxLine.length && l.length < 200) maxLine = l;
     }
     if (maxLine) searchCandidates.push(maxLine);
 
-    // 2. 第一行 (如果不短的话)
     if (lines[0].length > 5) searchCandidates.push(lines[0]);
 
-    // 3. 最后一行 (如果不短的话)
     if (lines[lines.length-1].length > 5) searchCandidates.push(lines[lines.length-1]);
 
     searchCandidates = [...new Set(searchCandidates)];
 
-    if (searchCandidates.length === 0) return showStatus("⚠️ 代码太短无法定位", "error");
+    if (searchCandidates.length === 0) return showStatus("⚠️ Code too short", "error");
 
     try {
         await Word.run(async (ctx) => {
