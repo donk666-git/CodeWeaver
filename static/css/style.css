@@ -48,9 +48,21 @@ textarea { font-family: Consolas, monospace; font-size: 11px; }
   text-align: left !important;
   max-height: 320px;
   overflow-y: auto;
+  overflow-x: hidden;
   white-space: pre-wrap;
   line-height: 1.5;
+  font-size: 14px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+
+#aiExplainResult * {
+  word-break: break-word;
+}
+
+#aiExplainResult pre,
+#aiExplainResult code {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 #aiExplainResult.ai-loading {
