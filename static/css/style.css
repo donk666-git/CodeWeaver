@@ -88,18 +88,18 @@ body {
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  padding: 5px;
+  padding: 3px;
   display: flex;
-  gap: 4px;
+  gap: 3px;
 }
 .nav-pills-custom .nav-item { flex: 1; }
 .nav-pills-custom .nav-link {
   width: 100%;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--gray-500);
-  padding: 10px 16px;
+  padding: 7px 12px;
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
@@ -187,18 +187,18 @@ body {
   background: transparent;
   border: none;
   border-right: 2px solid var(--gray-200);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 10px 8px;
+  padding: 7px 6px;
   color: var(--gray-600);
   transition: all 0.15s ease;
 }
 .btn-tool:last-child { border-right: none; }
 .btn-tool:hover { background: var(--white); color: var(--primary); }
 .btn-action-main {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 14px 24px;
+  padding: 10px 20px;
   border-radius: var(--radius-sm);
   border: none;
   transition: all 0.2s ease;
@@ -225,11 +225,11 @@ body {
 }
 .status-bar {
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--gray-500);
-  min-height: 22px;
-  padding: 4px 0;
+  min-height: 18px;
+  padding: 2px 0;
 }
 .status-bar .text-success { color: var(--success) !important; }
 .status-bar .text-danger { color: var(--danger) !important; }
@@ -244,19 +244,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 10px 14px;
   background: var(--gray-50);
   border-bottom: 1px solid var(--gray-200);
 }
 .ai-panel-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--gray-800);
 }
 .ai-panel-header .btn {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 6px 14px;
+  padding: 5px 10px;
   border-radius: var(--radius-sm);
   border: 2px solid var(--gray-200);
   color: var(--gray-600);
@@ -269,11 +269,11 @@ body {
   color: var(--white);
 }
 #aiExplainResult {
-  padding: 18px;
+  padding: 14px;
   color: var(--gray-700);
   font-size: 13px;
-  line-height: 1.7;
-  max-height: 240px;
+  line-height: 1.6;
+  max-height: 500px;
   overflow-y: auto;
   background: var(--white);
 }

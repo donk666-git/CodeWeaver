@@ -11,7 +11,9 @@ let explanationCollapsed = false;
 let lastExplanationContent = ''; // 存储原始解释内容用于复制
 
 Office.onReady((info) => {
-    if (info.host === Office.HostType.Word) {
+    if (info.host === Office.HostType.Word||
+    info.host === Office.HostType.PowerPoint ||
+    info.host === Office.HostType.Excel) {
             $(document).ready(function () {
                 console.log("✅ CodeWeaver v4.6 Ready");
             

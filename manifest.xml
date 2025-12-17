@@ -9,10 +9,12 @@
   <ProviderName>jamy</ProviderName>
   <DefaultLocale>zh-CN</DefaultLocale>
   <DisplayName DefaultValue="CodeWeaver Pro" />
-  <Description DefaultValue="自动格式化实验报告代码" />
+  <Description DefaultValue="「代码自动化格式 / 文档辅助插件」" />
   
   <Hosts>
     <Host Name="Document" />
+    <Host Name="Presentation" />
+    <Host Name="Workbook" />
   </Hosts>
   
   <DefaultSettings>
