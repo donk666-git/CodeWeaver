@@ -8,6 +8,7 @@ let searchTimer = null;
 let hljsConfigured = false;
 let listingCounter = 1;
 let explanationCollapsed = false;
+let lastExplanationContent = ''; // 存储原始解释内容用于复制
 
 Office.onReady((info) => {
     if (info.host === Office.HostType.Word) {
@@ -32,6 +33,7 @@ Office.onReady((info) => {
             $('#btnExplain').click(requestExplanation);
              $('#btnRenumber').click(renumberListings);
             $('#toggleExplain').click(toggleExplainPanel);
+            $('#btnCopyExplain').click(copyExplanation);
             setExplainVisibility(true);
             
             // 3. 绑定静态按钮 (项目库页)
@@ -103,12 +105,18 @@ function setExplainVisibility(show) {
     explanationCollapsed = !show;
     const $result = $('#aiExplainResult');
     const $toggle = $('#toggleExplain');
+    const $copyBtn = $('#btnCopyExplain');
     if (show) {
         $result.removeClass('d-none');
         $toggle.text('收起');
+        // 仅当有内容时显示复制按钮
+        if (lastExplanationContent) {
+            $copyBtn.removeClass('d-none');
+        }
     } else {
         $result.addClass('d-none');
         $toggle.text('展开');
+        $copyBtn.addClass('d-none');
     }
 }
 
@@ -116,12 +124,49 @@ function toggleExplainPanel() {
     setExplainVisibility(explanationCollapsed);
 }
 
-function renderExplanation(content) {
+function copyExplanation() {
+    if (!lastExplanationContent) {
+        showStatus("⚠️ 暂无内容可复制", "error");
+        return;
+    }
+    navigator.clipboard.writeText(lastExplanationContent).then(() => {
+        showStatus("✅ 已复制到剪贴板", "success");
+    }).catch(() => {
+        showStatus("❌ 复制失败", "error");
+    });
+}
+
+function renderExplanation(content, isRaw = false) {
     const $result = $('#aiExplainResult');
-    if (typeof marked !== 'undefined') {
-        $result.html(marked.parse(content || ''));
+    if (isRaw) {
+        // 存储原始内容用于复制
+        lastExplanationContent = content || '';
+    }
+    if (content && isRaw) {
+        // 使用 marked 渲染 Markdown
+        try {
+            if (typeof marked !== 'undefined') {
+                // 兼容不同版本的 marked API
+                const html = typeof marked.parse === 'function' 
+                    ? marked.parse(content) 
+                    : marked(content);
+                $result.html(html);
+            } else {
+                // fallback: 简单替换
+                $result.html(content.replace(/\n/g, '<br>'));
+            }
+        } catch (e) {
+            console.error('Markdown parse error:', e);
+            $result.html(content.replace(/\n/g, '<br>'));
+        }
     } else {
-        $result.text(content || '');
+        $result.html(content || '');
+    }
+    // 更新复制按钮可见性
+    if (lastExplanationContent && !explanationCollapsed) {
+        $('#btnCopyExplain').removeClass('d-none');
+    } else {
+        $('#btnCopyExplain').addClass('d-none');
     }
 }
 
@@ -259,9 +304,10 @@ async function requestExplanation() {
     const lang = $('#langSelect').val();
 
     const $result = $('#aiExplainResult');
+    lastExplanationContent = ''; // 清空之前的内容
     setExplainVisibility(true);
     $result.removeClass('ai-error ai-ready').addClass('ai-loading');
-    renderExplanation('⏳ AI 解读中...');
+    renderExplanation('⏳ AI 解读中...', false);
     try {
         const res = await fetch('/api/explain', {
             method: 'POST',
@@ -271,15 +317,15 @@ async function requestExplanation() {
         const data = await res.json();
         if (data.status === 'success') {
             $result.removeClass('ai-loading ai-error').addClass('ai-ready');
-            renderExplanation(data.explanation || '暂无解释');
+            renderExplanation(data.explanation || '暂无解释', true);
         } else {
             $result.removeClass('ai-loading ai-ready').addClass('ai-error');
-            renderExplanation(data.message || '解释失败');
+            renderExplanation(data.message || '解释失败', false);
         }
     } catch (e) {
         console.error(e);
         $result.removeClass('ai-ready ai-loading').addClass('ai-error');
-        renderExplanation('网络异常');
+        renderExplanation('网络异常', false);
     }
 }
 

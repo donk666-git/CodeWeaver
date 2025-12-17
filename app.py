@@ -72,23 +72,22 @@ def explain_code():
             return jsonify({'status': 'error', 'message': 'API key 未配置 (process.env.SILCON_API_KEY)'}), 400
 
         prompt = f"""
-请作为资深工程师，用中文输出结构化 Markdown 教程来解读这段{language or '代码'}。请简洁、准确、偏工程实践;避免冗余描述：
+输出结构化教程来解读这段{language or '代码'}。请简洁、准确，
 以工程文档风格简要说明代码的作用和关键点。
-避免分步骤推理、避免长篇分析。
 
-代码如下：
+代码：
 ```
 {code}
 ```
 """.strip()
         payload = {
-            "model": "deepseek-ai/DeepSeek-V3",
+            "model": "zai-org/GLM-4.6",
             "messages": [
-                {"role": "system", "content": "You are a senior engineer who writes concise, accurate, structured Chinese Markdown explanations with sections: Title, Overview, Step-by-step explanation, Key points, Example."},
+                {"role": "system", "content": "你是简洁的代码助手，不要思考过程，不要冗余解释。"},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.2,
-            "max_tokens": 300
+            "temperature": 0.1,
+            "max_tokens": 400
         }
 
         resp = requests.post(

@@ -38,23 +38,23 @@ textarea { font-family: Consolas, monospace; font-size: 11px; }
 
 /* AI explanation panel */
 #aiExplainResult {
-  min-height: 110px;
+  min-height: 100px;
   padding: 12px 14px;
-  margin-top: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  color: #343a40 !important;
-  text-align: left !important;
+  margin-top: 8px;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  background: #f6f8fa;
+  color: #24292f;
+  text-align: left;
   max-height: 320px;
   overflow-y: auto;
-  white-space: pre-wrap;
-  line-height: 1.5;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+  overflow-x: hidden;
+  line-height: 1.6;
 }
 
 #aiExplainResult.ai-loading {
   color: #0d6efd;
+  text-align: center;
 }
 
 #aiExplainResult.ai-error {
@@ -62,5 +62,85 @@ textarea { font-family: Consolas, monospace; font-size: 11px; }
 }
 
 #aiExplainResult.ai-ready {
-  color: #212529;
+  color: #24292f;
+}
+
+/* Markdown 渲染样式 - 直接作用于 #aiExplainResult */
+#aiExplainResult h1,
+#aiExplainResult h2,
+#aiExplainResult h3,
+#aiExplainResult h4 {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #1a202c;
+  border-bottom: none;
+}
+
+#aiExplainResult h1 { font-size: 1.15em; }
+#aiExplainResult h2 { font-size: 1.1em; }
+#aiExplainResult h3 { font-size: 1.05em; }
+#aiExplainResult h4 { font-size: 1em; }
+
+#aiExplainResult p {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+#aiExplainResult ul,
+#aiExplainResult ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+#aiExplainResult li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+#aiExplainResult code {
+  background-color: #f1f5f9;
+  color: #d6336c;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.9em;
+  word-break: break-word;
+}
+
+#aiExplainResult pre {
+  background-color: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+#aiExplainResult pre code {
+  background-color: transparent;
+  color: #24292f;
+  padding: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+#aiExplainResult blockquote {
+  border-left: 3px solid #0d6efd;
+  padding-left: 12px;
+  margin: 8px 0;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-radius: 0 4px 4px 0;
+}
+
+#aiExplainResult strong {
+  font-weight: 600;
+  color: #1a202c;
+}
+
+#aiExplainResult em {
+  font-style: italic;
+  color: #4a5568;
 }
