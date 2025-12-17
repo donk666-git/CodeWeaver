@@ -32,6 +32,7 @@ Office.onReady((info) => {
             $('#btnExplain').click(requestExplanation);
              $('#btnRenumber').click(renumberListings);
             $('#toggleExplain').click(toggleExplainPanel);
+            $('#copyExplain').click(copyExplanation);
             setExplainVisibility(true);
             
             // 3. 绑定静态按钮 (项目库页)
@@ -119,10 +120,32 @@ function toggleExplainPanel() {
 function renderExplanation(content) {
     const $result = $('#aiExplainResult');
     if (typeof marked !== 'undefined') {
-        $result.html(marked.parse(content || ''));
+        const parsed = marked.parse(content || '');
+        $result.html(parsed);
     } else {
         $result.text(content || '');
     }
+}
+
+function copyExplanation() {
+    const $result = $('#aiExplainResult');
+    const text = $result.text().trim();
+    if (!text) return showStatus("⚠️ 当前无可复制内容", "error");
+
+    const attemptClipboard = navigator.clipboard && navigator.clipboard.writeText
+        ? navigator.clipboard.writeText(text)
+        : Promise.reject();
+
+    attemptClipboard
+        .then(() => showStatus("✅ 已复制", "success"))
+        .catch(() => {
+            const $temp = $('<textarea>').css({ position: 'fixed', top: '-9999px', left: '-9999px' }).text(text);
+            $('body').append($temp);
+            $temp[0].select();
+            document.execCommand('copy');
+            $temp.remove();
+            showStatus("✅ 已复制", "success");
+        });
 }
 
 function normalizeIndentationText(raw, language = '') {
