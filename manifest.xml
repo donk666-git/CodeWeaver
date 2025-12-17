@@ -6,9 +6,9 @@
   
   <Id>c3848b52-2a41-4545-9e67-00955f136111</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>YourName</ProviderName>
+  <ProviderName>jamy</ProviderName>
   <DefaultLocale>zh-CN</DefaultLocale>
-  <DisplayName DefaultValue="CodeWeaver 代码助手" />
+  <DisplayName DefaultValue="CodeWeaver Pro" />
   <Description DefaultValue="自动格式化实验报告代码" />
   
   <Hosts>
