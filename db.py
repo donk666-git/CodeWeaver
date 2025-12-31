@@ -89,7 +89,7 @@ def delete_snippet(snippet_id):
     conn.commit()
     conn.close()
 
-# 【新增】删除项目 (连带删除下面的代码)
+# 删除项目 (连带删除下面的代码)
 def delete_project(project_name):
     conn = get_connection()
     c = conn.cursor()

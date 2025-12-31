@@ -56,20 +56,20 @@ export async function insertHighlight() {
     }
 }
 
-// 【关键修复：智能吸取模式】
+// 修复：智能吸取模式
 export async function getFromSelection() {
     try {
         await Word.run(async (ctx) => {
             // 1. 获取当前选区
             let range = ctx.document.getSelection();
             
-            // 【核心逻辑】检查光标是否在表格内
+            // 逻辑:检查光标是否在表格内
             const parentTable = range.parentTableOrNullObject;
             ctx.load(parentTable);
             await ctx.sync();
 
             // 如果在表格里，强制把“选区”扩展为“整个表格”
-            // 这样哪怕你只点了一下代码块，也能吸取全部代码！
+            // 这样哪怕只点了一下代码块，也能吸取全部代码！
             if (!parentTable.isNullObject) {
                 range = parentTable.getRange();
             }
